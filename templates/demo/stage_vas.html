@@ -1,0 +1,57 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 read · 1 definition + orientation list · 2 click · 3 no categories (only endpoints labelled) · 4 adjust + next · 5 version B #}
+{% set values = {'correctness': (42, 48), 'completeness': (55, 61), 'conciseness': (76, 71)}[page.criterion] %}
+<div class="dt-evalcard dt-evalcard--tall">
+  {{ m.frame_header(step, step_no, total, b_from=5) }}
+  <div class="eval-body">
+    {{ m.text_pane('summary', b_from=5) }}
+    <div class="rating-section">
+      <h3 class="rating-title">{{ step.subtitle }}</h3>
+      <div class="vas-wrap">
+        <div class="vas8-bar" data-vas="2:{{ values[0] }};4:{{ values[1] }};5:">
+          <div class="vas8-track-line"></div>
+          <div class="vas8-fill"></div>
+          <div class="vas8-thumb"></div>
+          <span class="dt-mark" style="left:{{ values[0] }}%" data-cursor="2"></span>
+          <span class="dt-mark" style="left:{{ values[1] }}%" data-cursor="4"></span>
+        </div>
+        <div class="vas-tick-labels" data-cls="3:dt-pulse">
+          <span>0 &mdash; {{ step.scale_labels[0] }}</span>
+          <span>{{ step.scale_labels[-1] }} &mdash; 100</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="completeness-missing" data-cls="1:dt-pulse">
+          {% if page.criterion == 'correctness' %}
+          <h4 class="completeness-missing-title">Falsche Informationen</h4>
+          <p class="rating-hint">Vom Studienteam als inhaltlich falsch oder irreführend markiert:</p>
+          <ul class="completeness-missing-list">
+            <li><span class="cm-item-name">Primärtumor: Tumordicke</span>
+              <div class="fi-reasoning fi-reasoning--inline">
+                <div class="fi-reasoning-label">Begründung des Studienteams <span class="fi-reasoning-cat fi-reasoning-cat--inhaltlich">Inhaltlich</span></div>
+                <div class="fi-reasoning-text">Tumordicke weicht vom histologischen Befund ab (dokumentiert: 4,8&nbsp;mm).</div>
+              </div>
+            </li>
+            <li><span class="cm-item-name">Therapieverlauf: Systemtherapie</span></li>
+          </ul>
+          {% elif page.criterion == 'completeness' %}
+          <h4 class="completeness-missing-title">Fehlende Informationen</h4>
+          <p class="rating-hint">Vom Studienteam als nicht enthalten markiert und im Schritt <em>Fallrelevanz</em> als relevant eingestuft:</p>
+          <ul class="completeness-missing-list">
+            <li>Primärtumor: Mutationsstatus (e.g. BRAF, NRAS, cKIT)</li>
+            <li>Befunde: Laborwerte (e.g. S100, LDH, HLA-A2)</li>
+          </ul>
+          {% else %}
+          <h4 class="completeness-missing-title">Enthaltene, aber als nicht relevant eingestufte Informationen</h4>
+          <p class="rating-hint">Vom Studienteam als enthalten markiert und im Schritt <em>Fallrelevanz</em> als nicht relevant eingestuft:</p>
+          <ul class="completeness-missing-list">
+            <li>Allgemeinzustand: Komorbiditäten</li>
+          </ul>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {{ m.frame_footer(step, b_from=5, next_glow=4, next_click=5) }}
+</div>

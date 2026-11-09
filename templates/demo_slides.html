@@ -1,0 +1,82 @@
+{% import 'demo/_macros.html' as m %}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo – {{ step.subtitle }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20261109a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='demo_tour.css') }}?v=20261109e">
+  {% if page.stage in ('relevance', 'record') %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}?v=60">
+  {% endif %}
+</head>
+<body class="dts-body">
+{# Demo for one rating step: chapters on the left, animated mock-up (stage) on
+   the right, navigated with Weiter/Zurück. Usually shown inside a modal (iframe). #}
+<div class="dt dt--slides" data-step-key="{{ step.key }}"
+     data-seen-key="tbeval-demo-seen-{{ session.username }}-{{ step.key }}"
+     data-back-url="{{ back_url }}">
+
+  <header class="dts-head">
+    <span class="dts-head-icon">{{ m.icon(page.icon, 24, 1.8) }}</span>
+    <div class="dts-head-text">
+      <div class="dts-eyebrow">Demo · {{ step.section }}{% if step_no %} · Schritt {{ step_no }} von {{ total }}{% endif %}</div>
+      <h1 class="dts-title">{{ step.subtitle }}</h1>
+    </div>
+  </header>
+
+  <div class="dts-main">
+    <div class="dts-text">
+      {% for ch in page.chapters %}
+      <article class="dt-chapter dt-chapter--{{ ch.kind }}" data-scene="{{ loop.index0 }}">
+        <div class="dt-chapter-card">
+          <div class="dt-chapter-meta">
+            <span class="dt-chapter-no">{{ '%02d' % loop.index }}</span>
+            <span class="dt-chapter-tag">{{ m.icon('hand' if ch.kind == 'ui' else 'bulb', 14, 2) }}{{ 'Bedienung' if ch.kind == 'ui' else 'Hintergrund' }}</span>
+          </div>
+          <h2 class="dt-chapter-title">{{ ch.title }}</h2>
+          <p class="dt-chapter-text">{{ ch.text | safe }}</p>
+        </div>
+      </article>
+      {% endfor %}
+      <section class="dts-summary" aria-label="Auf einen Blick">
+        <div class="dt-chapter-meta">
+          <span class="dt-chapter-tag">{{ m.icon('list', 14, 2) }}Auf einen Blick</span>
+        </div>
+        <ol class="dts-take-list">
+          {% for t in page.takeaways %}
+          <li><strong>{{ t.title }}</strong><span>{{ t.text }}</span></li>
+          {% endfor %}
+        </ol>
+      </section>
+    </div>
+
+    <div class="dts-stagebox">
+      <div class="dt-stage dt-stage--{{ page.stage }}" data-scene="0">
+        <div class="dt-viewport">
+          <div class="dt-frame" inert>
+            {% include 'demo/stage_' ~ page.stage ~ '.html' %}
+          </div>
+        </div>
+        <div class="dt-cursor" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="dts-foot">
+    <button type="button" class="dts-btn dts-btn--prev" data-slide="prev">&larr; Zurück</button>
+    <div class="dt-scene-nav" role="tablist" aria-label="Folien">
+      {% for ch in page.chapters %}
+      <button type="button" class="dt-scene-dot dt-scene-dot--{{ ch.kind }}" data-goto="{{ loop.index0 }}" title="{{ ch.title }}" aria-label="{{ loop.index }}. {{ ch.title }}"></button>
+      {% endfor %}
+      <button type="button" class="dt-scene-dot dt-scene-dot--summary" data-goto="{{ page.chapters | length }}" title="Auf einen Blick" aria-label="Auf einen Blick"></button>
+    </div>
+    <span class="dts-counter" aria-live="polite"></span>
+    <button type="button" class="dts-btn dts-btn--next" data-slide="next">Weiter &rarr;</button>
+  </footer>
+</div>
+
+<script src="{{ url_for('static', filename='demo_tour.js') }}?v=20261109a"></script>
+</body>
+</html>

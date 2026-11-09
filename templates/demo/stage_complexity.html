@@ -1,0 +1,28 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 final card · 1 covariate · 2 click · 3 orientation (no overlay; the real page has none) · 4 comment + finish #}
+<div class="dt-evalcard">
+  {{ m.frame_header(step, step_no, total) }}
+  <div class="eval-body eval-body--final">
+    <div class="final-card" data-cls="1:dt-pulse">
+      <div class="final-card__header">
+        <h3 class="final-card__title">Komplexität des Falls</h3>
+        <p class="final-card__subtitle">Wie schätzen Sie die klinische Komplexität dieses Falls ein?</p>
+      </div>
+      <div class="final-card__body">
+        <div class="vas-wrap vas-wrap--final">
+          <div class="vas8-bar" data-vas="2:70">
+            <div class="vas8-track-line"></div>
+            <div class="vas8-fill"></div>
+            <div class="vas8-thumb"></div>
+            <span class="dt-mark" style="left:70%" data-cursor="2"></span>
+          </div>
+          <div class="vas-tick-labels">
+            <span>0 &mdash; Sehr gering</span>
+            <span>Sehr hoch &mdash; 100</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{ m.frame_footer(step, next_glow=4, comment_open='4', comment_click=4) }}
+</div>

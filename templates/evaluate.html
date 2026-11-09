@@ -1,0 +1,3091 @@
+{% extends 'base.html' %}
+{% block content %}
+
+{# ── page body ─────────────────────────────────────────────────────────────── #}
+<div class="evaluate-layout">
+
+  {# ── steps sidebar ────────────────────────────────────────────────────────── #}
+  <aside class="steps-sidebar">
+    <div class="progress-header">
+      <div class="progress-meta">
+        <span class="progress-label">Fall <strong>{{ case_index + 1 }}</strong> von <strong>{{ total_cases }}</strong></span>
+        <span class="progress-count">{{ ((done_cases / total_cases) * 100) | int if total_cases else 0 }}%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" style="width: {{ ((done_cases / total_cases) * 100) | int if total_cases else 0 }}%"></div>
+      </div>
+    </div>
+
+    {# ── Problem melden (öffnet das E-Mail-Programm mit vorausgefüllten Angaben) ── #}
+    <button type="button" class="report-problem-btn" id="report-problem-btn"
+            data-user="{{ session.username }}"
+            data-case="{{ case_id }}"
+            data-step="Schritt {{ step_idx }}: {{ step.section }} – {{ step.subtitle }}{% if step.has_tabs and tab_idx is not none %} (Variante {{ ['A','B'][tab_idx] }}){% endif %}"
+            data-recipient="{{ support_email }}"
+            title="Öffnet Ihr E-Mail-Programm mit vorausgefüllten Angaben (Benutzer, Fall, Arbeitsschritt). Beschreiben Sie dort nur noch das Problem im Fließtext.">
+      ⚠ Problem melden
+    </button>
+    <script>
+    (function () {
+      var btn = document.getElementById('report-problem-btn');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var to      = btn.dataset.recipient || '';
+        var subject = (btn.dataset.user || '') + ' | Anfrage zur Evaluationsstudie';
+        var body    = 'Benutzername: '    + (btn.dataset.user || '') + '\r\n'
+                    + 'Fall: '            + (btn.dataset.case || '') + '\r\n'
+                    + 'Arbeitsschritt: '  + (btn.dataset.step || '') + '\r\n\r\n'
+                    + 'Problembeschreibung:\r\n';
+        var href = 'mailto:' + to
+                 + '?subject=' + encodeURIComponent(subject)
+                 + '&body='    + encodeURIComponent(body);
+        window.location.href = href;
+      });
+    })();
+    </script>
+
+    {% if is_admin and jump_cases %}
+    <div class="admin-jump" role="search">
+      <label class="admin-jump-label" for="admin-jump-search">Admin · Fall wechseln</label>
+      <input type="search" id="admin-jump-search"
+             class="admin-jump-input"
+             list="admin-jump-list"
+             placeholder="Suchen oder ID eingeben …"
+             autocomplete="off">
+      <datalist id="admin-jump-list">
+        {% for jc in jump_cases %}
+        <option value="{{ jc.id }}" label="{{ jc.label }}{% if not jc.annotatable %} · unvollständig{% endif %}">
+          {{ jc.label }}{% if not jc.annotatable %} (unvollständig){% endif %}
+        </option>
+        {% endfor %}
+      </datalist>
+      <select id="admin-jump-select" class="admin-jump-select">
+        <option value="">– Direkt zu Fall springen –</option>
+        {% for jc in jump_cases %}
+        <option value="{{ jc.id }}" {% if jc.id == case_id %}selected{% endif %}>
+          {{ jc.id[:10] }}…{% if not jc.annotatable %} (unvollständig){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <script>
+    (function () {
+      var sel   = document.getElementById('admin-jump-select');
+      var input = document.getElementById('admin-jump-search');
+      var current = {{ case_id | tojson }};
+      function goTo(cid) {
+        if (cid && cid !== current) {
+          window.location.href = '/evaluate/' + encodeURIComponent(cid) + '/step/0/tab/0';
+        }
+      }
+      if (sel)   sel.addEventListener('change', function () { goTo(sel.value); });
+      if (input) input.addEventListener('change', function () { goTo(input.value.trim()); });
+    })();
+    </script>
+    {% endif %}
+
+    <hr class="sidebar-divider">
+    <div class="steps">
+      {% set ns = namespace(prev_section='') %}
+      {% for s in rating_steps %}
+      {% set st = step_statuses[loop.index0] %}
+
+      {% if s.section != ns.prev_section %}
+        {% if ns.prev_section != '' %}
+          <hr class="sidebar-divider">
+        {% endif %}
+        {% set ns.prev_section = s.section %}
+        <div class="step-group-header">{{ s.section }}</div>
+      {% endif %}
+
+      {% if st == 'finish' %}
+      <a class="step step--{{ st }}"
+         href="{{ url_for('evaluate_step', case_id=case_id, step_idx=loop.index0, tab_idx=0) }}">
+      {% else %}
+      <div class="step step--{{ st }}">
+      {% endif %}
+        <div class="step-rail">
+          <div class="step-circle">
+            {% if st == 'finish' %}
+            <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.8"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            {% else %}{{ loop.index }}{% endif %}
+          </div>
+          {% if not loop.last %}
+          <div class="step-line"></div>
+          {% endif %}
+        </div>
+        <div class="step-body">
+          <span class="step-title">{{ s.subtitle }}</span>
+        </div>
+      {% if st == 'finish' %}</a>{% else %}</div>{% endif %}
+      {% endfor %}
+    </div>
+
+  </aside>
+
+  {# ── main eval card ────────────────────────────────────────────────────────── #}
+  <div class="card eval-card">
+
+    {# Card header #}
+    <div class="eval-card-header">
+      <div class="eval-card-header-buttons">
+        <a href="{{ url_for('case_dashboard', case_id=case_id) }}" class="btn-protocol">
+          <svg width="20" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><g stroke-width="1.5"><path d="M15 1.5H6.3a1.5 1.5 0 0 0-1.5 1.5v18a1.5 1.5 0 0 0 1.5 1.5h11.4a1.5 1.5 0 0 0 1.5-1.5V6z"/><polyline points="15 1.5 15 6 19.2 6"/><line x1="8" y1="10.5" x2="16" y2="10.5"/><line x1="8" y1="13.5" x2="16" y2="13.5"/><line x1="8" y1="16.5" x2="16" y2="16.5"/><line x1="8" y1="19.5" x2="12" y2="19.5"/></g></svg>Patientenakte
+        </a>
+        {% if step.has_tabs %}
+        <div class="tab-switcher">
+          <span class="tab-btn {% if tab_idx == 0 %}tab-active{% endif %}">Version A{% if is_admin and tab_idx == 0 and text_origin %} <span class="admin-origin admin-origin--{{ text_origin }}">{{ 'Human' if text_origin == 'human' else 'LLM' }}</span>{% endif %}</span>
+          <span class="tab-btn {% if tab_idx == 1 %}tab-active{% endif %}">Version B{% if is_admin and tab_idx == 1 and text_origin %} <span class="admin-origin admin-origin--{{ text_origin }}">{{ 'Human' if text_origin == 'human' else 'LLM' }}</span>{% endif %}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Step counter breadcrumb ── #}
+    <div class="step-counter">Schritt {{ step_idx + 1 }} von {{ rating_steps | length }}{% if step.has_tabs %} &middot; Version {{ 'A' if tab_idx == 0 else 'B' }}{% endif %}</div>
+
+    {# ── Task card: one-line task and demo entry (click-through slides in a modal) ── #}
+    <div class="task-card task-card--dual" id="task-demo"
+         data-seen-key="tbeval-demo-seen-{{ session.username }}-{{ step.key }}">
+      <button type="button" class="task-card-play" data-open-slides title="Demo als Folien öffnen">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+      </button>
+      <span class="task-card-body">
+        <span class="task-card-title"><strong>{{ step.section }}</strong> &mdash; {{ step.subtitle }}</span>
+        <span class="task-card-text">{{ step.alert }}</span>
+      </span>
+      <span class="task-card-actions">
+        <button type="button" class="task-card-cta" data-open-slides>Demo ansehen &#9654;</button>
+      </span>
+    </div>
+    {% with demo_key=step.key, demo_title=step.subtitle %}{% include 'demo/_slides_modal.html' %}{% endwith %}
+
+    {% if error %}
+    <div class="alert alert-error" style="margin: 0 1.5rem .5rem;">{{ error }}</div>
+    {% endif %}
+
+    {# ── macro: segmented 2-way control (✗/✓) ───────────────────────────── #}
+    {% macro seg_ctrl(field_name, val) %}
+    <div class="seg-ctrl">
+      <label class="seg-opt seg-opt--no {% if val == 'no' %}seg-active{% endif %}">
+        <input type="radio" name="{{ field_name }}" value="no"
+               {% if val == 'no' %}checked{% endif %}>
+        <span class="seg-icon">&#10007;</span>
+      </label>
+      <label class="seg-opt seg-opt--yes {% if val == 'yes' %}seg-active{% endif %}">
+        <input type="radio" name="{{ field_name }}" value="yes"
+               {% if val == 'yes' %}checked{% endif %}>
+        <span class="seg-icon">&#10003;</span>
+      </label>
+    </div>
+    {% endmacro %}
+
+    {# ── macro: comment block ─────────────────────────────────────────────── #}
+    {% macro comment_block(existing) %}
+    <div class="comment-section">
+      <button type="button" class="comment-toggle" onclick="toggleComment(this)">
+        &#128172; Kommentar (optional)
+      </button>
+      <div class="comment-body {% if existing.get('comment', '') %}comment-open{% endif %}">
+        <textarea name="comment" class="comment-textarea" rows="3"
+                  placeholder="Optionaler Kommentar zu dieser Bewertung...">{{ existing.get('comment', '') }}</textarea>
+      </div>
+    </div>
+    {% endmacro %}
+
+    <form method="post" id="rating-form">
+
+      {% if step.key == 'summary_falseinfo' %}
+      <div class="eval-body eval-body--falseinfo">
+        <div class="text-display">
+          <div class="text-label">Zusammenfassung – Version {{ 'A' if tab_idx == 0 else 'B' }}</div>
+          <div class="text-content">{{ text_content }}</div>
+        </div>
+        {# Tooltip for protocol ground truth #}
+        <div class="protocol-tooltip" id="protocol-tooltip"></div>
+        {% if ground_truth_excerpts %}
+        <script>var _groundTruthExcerpts = {{ ground_truth_excerpts | tojson }};</script>
+        {% else %}
+        <script>var _groundTruthExcerpts = {};</script>
+        {% endif %}
+        {% if protocol_excerpts %}
+        <script>var _protocolExcerpts = {{ protocol_excerpts | tojson }};</script>
+        {% else %}
+        <script>var _protocolExcerpts = {};</script>
+        {% endif %}
+        <div class="rating-section">
+          <h3 class="rating-title">Fehlerhafte Informationen</h3>
+          {% if enthalten_items %}
+          <p class="rating-hint">Bewerten Sie für jede vom Studienteam als falsch markierte Information die möglichen Folgen:</p>
+          <div class="mi-list" id="mi-list">
+            {% for item in enthalten_items %}
+            {% set slug = slugify(item) %}
+            {% set has_sev  = existing.get('severity_' + slug, '') != '' %}
+            {% set has_prob = existing.get('prob_' + slug, '') != '' %}
+            {% set is_done  = has_sev and has_prob %}
+            <div class="mi-card mi-card--falseinfo {% if is_done %}mi-card--done{% endif %} mi-card--collapsed"
+                 id="mic_{{ slug }}" data-slug="{{ slug }}"
+                 data-hl-slug="{{ slug }}"
+                 onmouseenter="highlightExcerpts && highlightExcerpts('{{ slug }}', true)"
+                 onmouseleave="highlightExcerpts && highlightExcerpts('{{ slug }}', false)">
+
+              <div class="mi-hdr" onclick="toggleMiCard('{{ slug }}')">
+                <svg class="mi-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                  <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/>
+                </svg>
+                <span class="mi-item-name">{{ item }}</span>
+                {% if is_done %}
+                <span class="mi-done-badge">Fertig</span>
+                {% else %}
+                <span class="mi-done-badge" style="display:none">Fertig</span>
+                {% endif %}
+              </div>
+
+              <div class="mi-body">
+                {% set _meta = falseinfo_meta.get(slug) if falseinfo_meta else None %}
+                {% if _meta and _meta.description %}
+                <div class="fi-reasoning">
+                  <div class="fi-reasoning-label">
+                    Begründung des Studienteams
+                    {% if _meta.category %}
+                      {% set _cat_labels = {
+                        'formal':     'Formal',
+                        'inhaltlich': 'Inhaltlich',
+                        'logisch':    'Logisch/medizinisch',
+                        'prozess':    'Prozess/System'
+                      } %}
+                      <span class="fi-reasoning-cat fi-reasoning-cat--{{ _meta.category }}">
+                        {{ _cat_labels.get(_meta.category, _meta.category) }}
+                      </span>
+                    {% endif %}
+                  </div>
+                  <div class="fi-reasoning-text">{{ _meta.description }}</div>
+                </div>
+                {% endif %}
+                <div class="fi-tl-row">
+
+                  <div class="fi-tl-col">
+                    <div class="fi-sub-label">Schwere des Schadens</div>
+                    <div class="tl-housing">
+                      <label class="tl-light tl-red">
+                        <input type="radio" name="severity_{{ slug }}" value="Schwerer Schaden"
+                               {% if existing.get('severity_' + slug) == 'Schwerer Schaden' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Schwerer Schaden</span>
+                      </label>
+                      <label class="tl-light tl-amber">
+                        <input type="radio" name="severity_{{ slug }}" value="Leichter Schaden"
+                               {% if existing.get('severity_' + slug) == 'Leichter Schaden' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Leichter Schaden</span>
+                      </label>
+                      <label class="tl-light tl-green">
+                        <input type="radio" name="severity_{{ slug }}" value="Kein Schaden"
+                               {% if existing.get('severity_' + slug) == 'Kein Schaden' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Kein Schaden</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="fi-tl-col">
+                    <div class="fi-sub-label">Eintrittswahrscheinlichkeit</div>
+                    <div class="tl-housing">
+                      <label class="tl-light tl-red">
+                        <input type="radio" name="prob_{{ slug }}" value="Hoch"
+                               {% if existing.get('prob_' + slug) == 'Hoch' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Hoch</span>
+                      </label>
+                      <label class="tl-light tl-amber">
+                        <input type="radio" name="prob_{{ slug }}" value="Moderat"
+                               {% if existing.get('prob_' + slug) == 'Moderat' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Moderat</span>
+                      </label>
+                      <label class="tl-light tl-green">
+                        <input type="radio" name="prob_{{ slug }}" value="Gering"
+                               {% if existing.get('prob_' + slug) == 'Gering' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Gering</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="fi-tl-col fi-comment-col">
+                    <div class="fi-sub-label">Kommentar (optional)</div>
+                    <textarea name="comment_{{ slug }}" class="fi-comment-textarea"
+                              placeholder="Optionaler Kommentar zu diesem Fehler...">{{ existing.get('comment_' + slug, '') }}</textarea>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty-state">
+            <p>Das Studienteam hat in dieser Version der Zusammenfassung keine falschen oder irreführenden Informationen markiert.<br>
+            Es gibt nichts zu bewerten — Sie können direkt zum nächsten Schritt fortfahren.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ════════════════════════════════════════════════════════════════════════
+         STEP: summary_missinginfo
+         ════════════════════════════════════════════════════════════════════════ #}
+      {% elif step.key == 'summary_missinginfo' %}
+      <div class="eval-body">
+        <div class="text-display">
+          <div class="text-label">Zusammenfassung – Version {{ 'A' if tab_idx == 0 else 'B' }}</div>
+          <div class="text-content">{{ text_content }}</div>
+        </div>
+        <div class="rating-section">
+          <h3 class="rating-title">Fehlende Informationen</h3>
+          {% if missing_items %}
+          <p class="rating-hint">Bewerten Sie für jede fehlende Information die möglichen Folgen:</p>
+          <div class="mi-list" id="mi-list">
+            {% for item in missing_items %}
+            {% set slug = slugify(item) %}
+            {% set has_sev  = existing.get('severity_' + slug, '') != '' %}
+            {% set has_prob = existing.get('prob_' + slug, '') != '' %}
+            {% set is_done  = has_sev and has_prob %}
+            <div class="mi-card {% if is_done %}mi-card--done{% endif %} {% if not loop.first or is_done %}mi-card--collapsed{% endif %}"
+                 id="mic_{{ slug }}" data-slug="{{ slug }}">
+
+              {# ── accordion header ── #}
+              <div class="mi-hdr" onclick="toggleMiCard('{{ slug }}')">
+                <svg class="mi-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                  <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/>
+                </svg>
+                <span class="mi-item-name">{{ item }}</span>
+                {% if is_done %}
+                <span class="mi-done-badge">Fertig</span>
+                {% else %}
+                <span class="mi-done-badge" style="display:none">Fertig</span>
+                {% endif %}
+              </div>
+
+              {# ── collapsible body ── #}
+              <div class="mi-body">
+                <div class="fi-tl-row">
+
+                  <div class="fi-tl-col">
+                    <div class="fi-sub-label">Schwere des Schadens</div>
+                    <div class="tl-housing">
+                      <label class="tl-light tl-red">
+                        <input type="radio" name="severity_{{ slug }}" value="Schwerer Schaden"
+                               {% if existing.get('severity_' + slug) == 'Schwerer Schaden' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Schwerer Schaden</span>
+                      </label>
+                      <label class="tl-light tl-amber">
+                        <input type="radio" name="severity_{{ slug }}" value="Leichter Schaden"
+                               {% if existing.get('severity_' + slug) == 'Leichter Schaden' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Leichter Schaden</span>
+                      </label>
+                      <label class="tl-light tl-green">
+                        <input type="radio" name="severity_{{ slug }}" value="Kein Schaden"
+                               {% if existing.get('severity_' + slug) == 'Kein Schaden' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Kein Schaden</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="fi-tl-col">
+                    <div class="fi-sub-label">Eintrittswahrscheinlichkeit</div>
+                    <div class="tl-housing">
+                      <label class="tl-light tl-red">
+                        <input type="radio" name="prob_{{ slug }}" value="Hoch"
+                               {% if existing.get('prob_' + slug) == 'Hoch' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Hoch</span>
+                      </label>
+                      <label class="tl-light tl-amber">
+                        <input type="radio" name="prob_{{ slug }}" value="Moderat"
+                               {% if existing.get('prob_' + slug) == 'Moderat' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Moderat</span>
+                      </label>
+                      <label class="tl-light tl-green">
+                        <input type="radio" name="prob_{{ slug }}" value="Gering"
+                               {% if existing.get('prob_' + slug) == 'Gering' %}checked{% endif %}
+                               onchange="onMiChange('{{ slug }}')">
+                        <span class="tl-bulb"></span>
+                        <span class="tl-opt-label">Gering</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="fi-tl-col fi-comment-col">
+                    <div class="fi-sub-label">Kommentar (optional)</div>
+                    <textarea name="comment_{{ slug }}" class="fi-comment-textarea"
+                              placeholder="Optionaler Kommentar...">{{ existing.get('comment_' + slug, '') }}</textarea>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty-state">
+            <p>Keine relevanten Informationen fehlen in dieser Version der Zusammenfassung.<br>
+            Es gibt keine fehlenden Informationen zu bewerten.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ════════════════════════════════════════════════════════════════════════
+         STEP: summary_correctness / summary_completeness / summary_conciseness
+         – VAS 0–100 with descriptive bucket label
+         ════════════════════════════════════════════════════════════════════════ #}
+      {% elif step.key in ['summary_correctness',
+                            'summary_completeness',
+                            'summary_conciseness'] %}
+      <div class="eval-body">
+        <div class="text-display">
+          {% if step.section_type == 'summary' %}
+          <div class="text-label">Zusammenfassung – Version {{ 'A' if tab_idx == 0 else 'B' }}</div>
+          {% else %}
+          <div class="text-label">Fragestellung – Version {{ 'A' if tab_idx == 0 else 'B' }}</div>
+          {% endif %}
+          <div class="text-content">{{ text_content }}</div>
+        </div>
+        <div class="rating-section">
+          <h3 class="rating-title">{{ step.subtitle }}</h3>
+          <div class="vas-wrap">
+            <div class="vas8-bar" id="vas-bar">
+              <div class="vas8-track-line"></div>
+              <div class="vas8-fill" id="vas-fill"></div>
+              <div class="vas8-thumb" id="vas-thumb"></div>
+            </div>
+            <div class="vas-tick-labels">
+              <span>0 &mdash; {{ step.scale_labels[0] }}</span>
+              <span>{{ step.scale_labels[-1] }} &mdash; 100</span>
+            </div>
+            <input type="hidden" name="vas_score" id="vas-hidden"
+                   value="{{ existing.get('vas_score', '') }}">
+          </div>
+
+          {% if step.key == 'summary_completeness' %}
+          <div class="completeness-missing">
+            <h4 class="completeness-missing-title">Fehlende Informationen</h4>
+            {% if missing_items %}
+            <p class="rating-hint">
+              Vom Studienteam als nicht enthalten markiert und im Schritt
+              <em>Fallrelevanz</em> als relevant eingestuft:
+            </p>
+            <ul class="completeness-missing-list">
+              {% for item in missing_items %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="rating-hint">
+              Keine als relevant eingestuften Informationen fehlen in dieser
+              Version der Zusammenfassung.
+            </p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if step.key == 'summary_correctness' %}
+          <div class="completeness-missing">
+            <h4 class="completeness-missing-title">Falsche Informationen</h4>
+            {% if false_items %}
+            <p class="rating-hint">
+              Vom Studienteam als inhaltlich falsch oder irreführend markiert:
+            </p>
+            {% set _cat_labels = {
+              'formal':     'Formal',
+              'inhaltlich': 'Inhaltlich',
+              'logisch':    'Logisch/medizinisch',
+              'prozess':    'Prozess/System'
+            } %}
+            <ul class="completeness-missing-list">
+              {% for item in false_items %}
+              {% set _slug = slugify(item) %}
+              {% set _meta = falseinfo_meta.get(_slug) if falseinfo_meta else None %}
+              <li>
+                <span class="cm-item-name">{{ item }}</span>
+                {% if _meta and _meta.description %}
+                <div class="fi-reasoning fi-reasoning--inline">
+                  <div class="fi-reasoning-label">
+                    Begründung des Studienteams
+                    {% if _meta.category %}
+                      <span class="fi-reasoning-cat fi-reasoning-cat--{{ _meta.category }}">
+                        {{ _cat_labels.get(_meta.category, _meta.category) }}
+                      </span>
+                    {% endif %}
+                  </div>
+                  <div class="fi-reasoning-text">{{ _meta.description }}</div>
+                </div>
+                {% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="rating-hint">
+              Keine falschen oder irreführenden Informationen in dieser
+              Version der Zusammenfassung markiert.
+            </p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if step.key == 'summary_conciseness' %}
+          <div class="completeness-missing">
+            <h4 class="completeness-missing-title">Enthaltene, aber als nicht relevant eingestufte Informationen</h4>
+            {% if irrelevant_items %}
+            <p class="rating-hint">
+              Vom Studienteam als enthalten markiert und im Schritt
+              <em>Fallrelevanz</em> als nicht relevant eingestuft:
+            </p>
+            <ul class="completeness-missing-list">
+              {% for item in irrelevant_items %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="rating-hint">
+              Keine enthaltenen Informationen wurden als nicht relevant
+              eingestuft.
+            </p>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+
+      {# ════════════════════════════════════════════════════════════════════════
+         STEP: postedit  (Bearbeitungsaufwand – edit-in-place widget)
+         ════════════════════════════════════════════════════════════════════════ #}
+      {% elif step.key in ['summary_postedit', 'problem_postedit'] %}
+      <div class="eval-body">
+        {# ── left panel: read-only text ──────────────────────────────────── #}
+        <div class="text-display pe-text-panel" id="pe-text-panel">
+          {% if step.section_type == 'summary' %}
+          <div class="text-label">
+            Zusammenfassung – Version {{ 'A' if tab_idx == 0 else 'B' }}
+          </div>
+          {% else %}
+          <div class="text-label">
+            Fragestellung – Version {{ 'A' if tab_idx == 0 else 'B' }}
+          </div>
+          {% endif %}
+
+          <div class="text-content">{{ text_content }}</div>
+        </div>
+
+        {# ── right panel: decision tree ─────────────────────────────────── #}
+        <div class="rating-section">
+          <h3 class="rating-title">{{ step.subtitle }}</h3>
+          {% if step.key == 'summary_postedit' %}
+          <p class="pe-intro-text">Kann dieser Text direkt für die klinische Verwendung übernommen werden, oder sind Überarbeitungen erforderlich? Falls ja, schätzen Sie den Zeitaufwand.</p>
+          {% else %}
+          <p class="pe-intro-text">Kann diese Fragestellung direkt für die klinische Verwendung übernommen werden, oder sind Überarbeitungen erforderlich? Falls ja, schätzen Sie den Zeitaufwand.</p>
+          {% endif %}
+
+          {# Level 1: use as-is vs needs edit #}
+          <div class="pe-level1">
+            <label class="pe-card pe-card--green
+              {% if existing.get('pe_decision') == 'use_as_is' %}pe-card--active{% endif %}">
+              <input type="radio" name="pe_decision" value="use_as_is"
+                     {% if existing.get('pe_decision') == 'use_as_is' %}checked{% endif %} required>
+              <span class="pe-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+              <span class="pe-card-label">Direkt verwenden</span>
+              <span class="pe-card-sub">Kein Überarbeitungsbedarf</span>
+            </label>
+            <label class="pe-card pe-card--amber
+              {% if existing.get('pe_decision') == 'needs_edit' %}pe-card--active{% endif %}">
+              <input type="radio" name="pe_decision" value="needs_edit"
+                     {% if existing.get('pe_decision') == 'needs_edit' %}checked{% endif %}>
+              <span class="pe-card-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><g transform="translate(12 12) scale(1.1) translate(-10.9 -10.9)"><path fill-rule="evenodd" d="M12.7 7.2L14.4 6.9L14.4 9.1L12.7 8.8L11.9 10.8L13.3 11.7L11.7 13.3L10.8 11.9L8.8 12.7L9.1 14.4L6.9 14.4L7.2 12.7L5.2 11.9L4.3 13.3L2.7 11.7L4.1 10.8L3.3 8.8L1.6 9.1L1.6 6.9L3.3 7.2L4.1 5.2L2.7 4.3L4.3 2.7L5.2 4.1L7.2 3.3L6.9 1.6L9.1 1.6L8.8 3.3L10.8 4.1L11.7 2.7L13.3 4.3L11.9 5.2ZM10.2 8A2.2 2.2 0 1 0 5.8 8A2.2 2.2 0 1 0 10.2 8Z"/><path fill-rule="evenodd" d="M19.1 15.5L20.2 15.3L20.2 16.7L19.1 16.5L18.6 17.8L19.5 18.4L18.4 19.5L17.8 18.6L16.5 19.1L16.7 20.2L15.3 20.2L15.5 19.1L14.2 18.6L13.6 19.5L12.5 18.4L13.5 17.8L12.9 16.5L11.8 16.7L11.8 15.3L12.9 15.5L13.5 14.2L12.5 13.6L13.6 12.5L14.2 13.5L15.5 12.9L15.3 11.8L16.7 11.8L16.5 12.9L17.8 13.5L18.4 12.5L19.5 13.6L18.6 14.2ZM17.4 16A1.4 1.4 0 1 0 14.6 16A1.4 1.4 0 1 0 17.4 16Z"/></g></svg></span>
+              <span class="pe-card-label">Überarbeitung nötig</span>
+              <span class="pe-card-sub">Bitte Aufwand schätzen</span>
+            </label>
+          </div>
+
+          {# Level 2: effort category (shown when needs_edit) #}
+          {% if step.key == 'summary_postedit' %}
+          <div class="pe-level2" id="pe-level2"
+               style="{% if existing.get('pe_decision') != 'needs_edit' %}display:none{% endif %}">
+            <div class="pe-level2-header">Geschätzte Dauer der Überarbeitung:</div>
+            <div class="pe-level2-options">
+              <label class="pe-sub-card
+                {% if existing.get('pe_effort') == 'minor' %}pe-sub-card--active{% endif %}">
+                <input type="radio" name="pe_effort" value="minor"
+                       {% if existing.get('pe_effort') == 'minor' %}checked{% endif %}>
+                <span class="pe-sub-icon"><svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="24" cy="26" r="19" fill="none" stroke="#1a4f8a" stroke-width="3.5"/>
+                  <path d="M24 26 L24 7 A19 19 0 0 1 25.99 7.10 Z" fill="#e74c3c"/>
+                  <line x1="21" y1="4" x2="27" y2="4" stroke="#1a4f8a" stroke-width="3" stroke-linecap="round"/>
+                  <line x1="24" y1="4" x2="24" y2="9" stroke="#1a4f8a" stroke-width="2.5"/>
+                  <line x1="37" y1="11" x2="40" y2="8" stroke="#1a4f8a" stroke-width="2.5" stroke-linecap="round"/>
+                  <circle cx="24" cy="26" r="1.5" fill="#1a4f8a"/>
+                </svg></span>
+                <span class="pe-sub-label">Kleine Korrekturen</span>
+                <span class="pe-sub-desc">max. 1 min</span>
+              </label>
+              <label class="pe-sub-card
+                {% if existing.get('pe_effort') == 'major' %}pe-sub-card--active{% endif %}">
+                <input type="radio" name="pe_effort" value="major"
+                       {% if existing.get('pe_effort') == 'major' %}checked{% endif %}>
+                <span class="pe-sub-icon"><svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="24" cy="26" r="19" fill="none" stroke="#1a4f8a" stroke-width="3.5"/>
+                  <path d="M24 26 L24 7 A19 19 0 0 1 29.87 7.93 Z" fill="#e74c3c"/>
+                  <line x1="21" y1="4" x2="27" y2="4" stroke="#1a4f8a" stroke-width="3" stroke-linecap="round"/>
+                  <line x1="24" y1="4" x2="24" y2="9" stroke="#1a4f8a" stroke-width="2.5"/>
+                  <line x1="37" y1="11" x2="40" y2="8" stroke="#1a4f8a" stroke-width="2.5" stroke-linecap="round"/>
+                  <circle cx="24" cy="26" r="1.5" fill="#1a4f8a"/>
+                </svg></span>
+                <span class="pe-sub-label">Größere Überarbeitungen</span>
+                <span class="pe-sub-desc">1-5 min</span>
+              </label>
+              <label class="pe-sub-card
+                {% if existing.get('pe_effort') == 'rewrite' %}pe-sub-card--active{% endif %}">
+                <input type="radio" name="pe_effort" value="rewrite"
+                       {% if existing.get('pe_effort') == 'rewrite' %}checked{% endif %}>
+                <span class="pe-sub-icon"><svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="24" cy="26" r="19" fill="none" stroke="#1a4f8a" stroke-width="3.5"/>
+                  <path d="M24 26 L24 7 A19 19 0 0 1 33.50 9.55 Z" fill="#e74c3c"/>
+                  <line x1="21" y1="4" x2="27" y2="4" stroke="#1a4f8a" stroke-width="3" stroke-linecap="round"/>
+                  <line x1="24" y1="4" x2="24" y2="9" stroke="#1a4f8a" stroke-width="2.5"/>
+                  <line x1="37" y1="11" x2="40" y2="8" stroke="#1a4f8a" stroke-width="2.5" stroke-linecap="round"/>
+                  <circle cx="24" cy="26" r="1.5" fill="#1a4f8a"/>
+                </svg></span>
+                <span class="pe-sub-label">Vollständig neu verfassen</span>
+                <span class="pe-sub-desc">&gt; 5 min</span>
+              </label>
+            </div>
+          </div>
+          {% elif step.key == 'problem_postedit' %}
+          <div class="pe-level2" id="pe-level2"
+               style="{% if existing.get('pe_decision') != 'needs_edit' %}display:none{% endif %}">
+            <div class="pe-level2-header">Geschätzte Dauer der Überarbeitung:</div>
+            <div class="pe-level2-options">
+              <label class="pe-sub-card
+                {% if existing.get('pe_effort') == 'minor' %}pe-sub-card--active{% endif %}">
+                <input type="radio" name="pe_effort" value="minor"
+                       {% if existing.get('pe_effort') == 'minor' %}checked{% endif %}>
+                <span class="pe-sub-icon"><svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="24" cy="26" r="19" fill="none" stroke="#1a4f8a" stroke-width="3.5"/>
+                  <path d="M24 26 L24 7 A19 19 0 0 1 25.99 7.10 Z" fill="#e74c3c"/>
+                  <line x1="21" y1="4" x2="27" y2="4" stroke="#1a4f8a" stroke-width="3" stroke-linecap="round"/>
+                  <line x1="24" y1="4" x2="24" y2="9" stroke="#1a4f8a" stroke-width="2.5"/>
+                  <line x1="37" y1="11" x2="40" y2="8" stroke="#1a4f8a" stroke-width="2.5" stroke-linecap="round"/>
+                  <circle cx="24" cy="26" r="1.5" fill="#1a4f8a"/>
+                </svg></span>
+                <span class="pe-sub-label">Kleine Korrekturen</span>
+                <span class="pe-sub-desc">max. 1 min</span>
+              </label>
+              <label class="pe-sub-card
+                {% if existing.get('pe_effort') == 'rewrite' %}pe-sub-card--active{% endif %}">
+                <input type="radio" name="pe_effort" value="rewrite"
+                       {% if existing.get('pe_effort') == 'rewrite' %}checked{% endif %}>
+                <span class="pe-sub-icon"><svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="24" cy="26" r="19" fill="none" stroke="#1a4f8a" stroke-width="3.5"/>
+                  <path d="M24 26 L24 7 A19 19 0 0 1 29.87 7.93 Z" fill="#e74c3c"/>
+                  <line x1="21" y1="4" x2="27" y2="4" stroke="#1a4f8a" stroke-width="3" stroke-linecap="round"/>
+                  <line x1="24" y1="4" x2="24" y2="9" stroke="#1a4f8a" stroke-width="2.5"/>
+                  <line x1="37" y1="11" x2="40" y2="8" stroke="#1a4f8a" stroke-width="2.5" stroke-linecap="round"/>
+                  <circle cx="24" cy="26" r="1.5" fill="#1a4f8a"/>
+                </svg></span>
+                <span class="pe-sub-label">Vollständig neu verfassen</span>
+                <span class="pe-sub-desc">&gt; 1 min</span>
+              </label>
+            </div>
+          </div>
+          {% endif %}
+
+          {# Confirmation message (shown when use_as_is) #}
+          <div class="pe-confirm-msg" id="pe-confirm-msg"
+               style="{% if existing.get('pe_decision') != 'use_as_is' %}display:none{% endif %}">
+            <span class="pe-confirm-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+            <span>Kein Überarbeitungsbedarf.</span>
+          </div>
+
+        </div>{# end rating-section #}
+      </div>{# end eval-body #}
+
+      <script>
+      (function(){
+        var cards    = document.querySelectorAll('.pe-card input[type="radio"]');
+        var level2   = document.getElementById('pe-level2');
+        var subCards = document.querySelectorAll('.pe-sub-card');
+        var confirm  = document.getElementById('pe-confirm-msg');
+
+        function syncCards() {
+          document.querySelectorAll('.pe-card').forEach(function(c) {
+            var inp = c.querySelector('input');
+            if (inp) c.classList.toggle('pe-card--active', inp.checked);
+          });
+          var needsEdit = document.querySelector('.pe-card input[value="needs_edit"]');
+          var isEdit    = needsEdit && needsEdit.checked;
+          if (level2) {
+            level2.style.display = isEdit ? 'flex' : 'none';
+            if (!isEdit) {
+              document.querySelectorAll('input[name="pe_effort"]').forEach(function(r){ r.checked = false; });
+              subCards.forEach(function(s){ s.classList.remove('pe-sub-card--active'); });
+            }
+          }
+          confirm.style.display = (!isEdit && document.querySelector('.pe-card input[value="use_as_is"]:checked')) ? 'flex' : 'none';
+        }
+
+        subCards.forEach(function(card) {
+          card.addEventListener('change', function() {
+            subCards.forEach(function(s){ s.classList.remove('pe-sub-card--active'); });
+            this.closest('.pe-sub-card').classList.add('pe-sub-card--active');
+          });
+        });
+        cards.forEach(function(r) { r.addEventListener('change', syncCards); });
+      })();
+      </script>
+
+      {# ════════════════════════════════════════════════════════════════════════
+         STEP: origin_guess (summary or problem)
+         ════════════════════════════════════════════════════════════════════════ #}
+      {% elif step.key in ['summary_origin_guess', 'problem_origin_guess'] %}
+      <div class="eval-body">
+        <div class="text-display">
+          {% if step.section_type == 'summary' %}
+          <div class="text-label">Zusammenfassung – Version {{ 'A' if tab_idx == 0 else 'B' }}</div>
+          {% else %}
+          <div class="text-label">Fragestellung – Version {{ 'A' if tab_idx == 0 else 'B' }}</div>
+          {% endif %}
+          <div class="text-content">{{ text_content }}</div>
+        </div>
+        <div class="rating-section">
+          <h3 class="rating-title">{{ step.subtitle }}</h3>
+          <div class="origin-widget">
+
+            {# ── Mensch ── #}
+            <label class="origin-opt origin-opt--mensch {% if existing.get('choice') == 'Mensch' %}origin-opt--active{% endif %}">
+              <input type="radio" name="choice" value="Mensch"
+                     {% if existing.get('choice') == 'Mensch' %}checked{% endif %} required>
+              <div class="origin-icon">
+                <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2.4"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="22" cy="11" r="6"/>
+                  <path d="M8 42 C8 30 14 26 22 26 C30 26 36 30 36 42"/>
+                  <path d="M17 26 L17 33 Q17 38 22 38 Q27 38 27 33 L27 26"/>
+                  <circle cx="27" cy="39.5" r="2" fill="currentColor" stroke="none"/>
+                </svg>
+              </div>
+              <span class="origin-label">Mensch</span>
+            </label>
+
+            {# ── Unsicher ── #}
+            <label class="origin-opt origin-opt--unsicher {% if existing.get('choice') == 'Unsicher' %}origin-opt--active{% endif %}">
+              <input type="radio" name="choice" value="Unsicher"
+                     {% if existing.get('choice') == 'Unsicher' %}checked{% endif %} required>
+              <div class="origin-icon">
+                <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2.4"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="22" cy="22" r="19"/>
+                  <path d="M15.5 17 C15.5 11.5 21 8.5 25.5 12 C30 15.5 27.5 21 22 23 L22 28"/>
+                  <circle cx="22" cy="34" r="2" fill="currentColor" stroke="none"/>
+                </svg>
+              </div>
+              <span class="origin-label">Unsicher</span>
+            </label>
+
+            {# ── KI ── #}
+            <label class="origin-opt origin-opt--ki {% if existing.get('choice') == 'KI' %}origin-opt--active{% endif %}">
+              <input type="radio" name="choice" value="KI"
+                     {% if existing.get('choice') == 'KI' %}checked{% endif %} required>
+              <div class="origin-icon">
+                <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2.4"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="38" height="26" rx="3"/>
+                  <rect x="7" y="9" width="30" height="18" rx="1.5" stroke-width="1.8"/>
+                  <circle cx="14" cy="16" r="2" fill="currentColor" stroke="none"/>
+                  <circle cx="22" cy="13" r="2" fill="currentColor" stroke="none"/>
+                  <circle cx="30" cy="17" r="2" fill="currentColor" stroke="none"/>
+                  <circle cx="18" cy="22" r="2" fill="currentColor" stroke="none"/>
+                  <circle cx="26" cy="22" r="2" fill="currentColor" stroke="none"/>
+                  <path d="M14 16 L22 13 L30 17" stroke-width="1.5"/>
+                  <path d="M14 16 L18 22 L26 22 L30 17" stroke-width="1.5"/>
+                  <path d="M22 13 L18 22" stroke-width="1.5"/>
+                  <path d="M22 31 L22 37" stroke-width="2.4"/>
+                  <path d="M14 37 L30 37"/>
+                </svg>
+              </div>
+              <span class="origin-label">KI</span>
+            </label>
+
+          </div>
+        </div>
+      </div>
+
+      {# ════════════════════════════════════════════════════════════════════════
+         STEP: preference (side-by-side)
+         ════════════════════════════════════════════════════════════════════════ #}
+      {% elif step.key in ['summary_preference', 'problem_preference'] %}
+      <div class="eval-body eval-body--preference">
+        <div class="preference-cols" id="pref-cols">
+          <div class="preference-col pref-clickable {% if existing.get('choice') == 'Version A' %}pref-selected{% endif %}" data-pref="Version A">
+            <div class="text-label pref-label-a">Version A{% if is_admin and text_a_origin %} <span class="admin-origin admin-origin--{{ text_a_origin }}">{{ 'Human' if text_a_origin == 'human' else 'LLM' }}</span>{% endif %}</div>
+            <div class="text-content preference-text">{{ text_a }}</div>
+            <div class="pref-badge">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <!-- beam -->
+                <line x1="12" y1="3" x2="12" y2="20"/>
+                <!-- bar tilted left-down -->
+                <line x1="5" y1="8" x2="19" y2="4"/>
+                <!-- left pan (heavier, lower) -->
+                <path d="M5 8 L3 13 Q5 15 7 13 Z"/>
+                <!-- right pan (lighter, higher) -->
+                <path d="M19 4 L17 8 Q19 10 21 8 Z"/>
+                <!-- base -->
+                <line x1="9" y1="20" x2="15" y2="20"/>
+              </svg>
+            </div>
+          </div>
+          <div class="preference-col pref-clickable {% if existing.get('choice') == 'Version B' %}pref-selected{% endif %}" data-pref="Version B">
+            <div class="text-label pref-label-b">Version B{% if is_admin and text_b_origin %} <span class="admin-origin admin-origin--{{ text_b_origin }}">{{ 'Human' if text_b_origin == 'human' else 'LLM' }}</span>{% endif %}</div>
+            <div class="text-content preference-text">{{ text_b }}</div>
+            <div class="pref-badge">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <!-- beam -->
+                <line x1="12" y1="3" x2="12" y2="20"/>
+                <!-- bar tilted right-down -->
+                <line x1="5" y1="4" x2="19" y2="8"/>
+                <!-- left pan (lighter, higher) -->
+                <path d="M5 4 L3 8 Q5 10 7 8 Z"/>
+                <!-- right pan (heavier, lower) -->
+                <path d="M19 8 L17 13 Q19 15 21 13 Z"/>
+                <!-- base -->
+                <line x1="9" y1="20" x2="15" y2="20"/>
+              </svg>
+            </div>
+          </div>
+          <button type="button" id="pref-no-pref-btn"
+                  class="pref-no-pref-btn {% if existing.get('choice', 'Keine Präferenz') == 'Keine Präferenz' %}pref-no-pref-btn--active{% endif %}"
+                  title="Keine klare Präferenz">
+            <svg viewBox="0 0 24 24" width="34" height="34" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <!-- beam -->
+              <line x1="12" y1="4" x2="12" y2="20"/>
+              <!-- horizontal bar -->
+              <line x1="5" y1="6" x2="19" y2="6"/>
+              <!-- left pan (balanced = same height) -->
+              <path d="M5 6 L3 11 Q5 13 7 11 Z"/>
+              <!-- right pan (balanced = same height) -->
+              <path d="M19 6 L17 11 Q19 13 21 11 Z"/>
+              <!-- base -->
+              <line x1="9" y1="20" x2="15" y2="20"/>
+            </svg>
+            <span class="pref-no-pref-label">Keine Präferenz</span>
+          </button>
+        </div>
+        <input type="hidden" name="choice" id="pref-choice"
+               value="{{ existing.get('choice', 'Keine Präferenz') }}">
+        <div class="rating-section rating-section--preference">
+          <h3 class="rating-title">{{ step.subtitle }}</h3>
+          <p class="pref-hint">Klicken Sie auf eine Version, um sie zu bevorzugen. Erneutes Klicken hebt die Auswahl auf.</p>
+          <div class="pref-status-row">
+            <span class="pref-status-label">Aktuelle Auswahl:</span>
+            <span class="pref-status-value" id="pref-status-text">{{ existing.get('choice', 'Keine Präferenz') }}</span>
+          </div>
+        </div>
+      </div>
+
+      {# ════════════════════════════════════════════════════════════════════════
+         STEP: problem_focus
+         ════════════════════════════════════════════════════════════════════════ #}
+      {% elif step.key == 'problem_focus' %}
+      <div class="eval-body">
+        <div class="text-display">
+          <div class="text-label">Fragestellung – Version {{ 'A' if tab_idx == 0 else 'B' }}</div>
+          <div class="text-content">{{ text_content }}</div>
+        </div>
+        <div class="rating-section">
+          <h3 class="rating-title">{{ step.subtitle }}</h3>
+
+          <div class="sub-section">
+            <div class="sub-section-label">Vorgeschlagene Diskussionsschwerpunkte:<span class="sub-section-hint">Mehrfachauswahl möglich</span></div>
+
+            {# hidden checkboxes – still submitted with the form #}
+            {% for opt in step.topic_options %}
+            <input type="checkbox" name="topics" value="{{ opt }}" id="fc_cb_{{ loop.index }}"
+                   class="fc-hidden-cb" {% if opt in existing.get('topics', []) %}checked{% endif %}>
+            {% endfor %}
+
+            <div class="fc-widget" id="fc_widget">
+
+              {# ── start node ── #}
+              <div class="fc-start-row">
+                <div class="fc-start-node">Fragestellung fokussiert auf …</div>
+              </div>
+
+              {# ── trunk + horizontal rail ── #}
+              <div class="fc-trunk-wrap">
+                <div class="fc-trunk"></div>
+                <div class="fc-rail-wrap" id="fc_rail_wrap"></div>
+              </div>
+
+              {# ── option nodes ── #}
+              <div class="fc-nodes-row">
+
+                <div class="fc-branch-wrap">
+                  <div class="fc-branch-line"></div>
+                  <div class="fc-node {% if 'Weitere Diagnostik' in existing.get('topics', []) %}fc-node--on{% endif %}"
+                       data-value="Weitere Diagnostik" data-cb="fc_cb_1">
+                    <span class="fc-node-icon">🔬</span>
+                    <span class="fc-node-text">Weitere<br>Diagnostik</span>
+                  </div>
+                </div>
+
+                <div class="fc-branch-wrap">
+                  <div class="fc-branch-line"></div>
+                  <div class="fc-node {% if 'Therapie (Beginn, Auswahl, Modifikation)' in existing.get('topics', []) %}fc-node--on{% endif %}"
+                       data-value="Therapie (Beginn, Auswahl, Modifikation)" data-cb="fc_cb_2">
+                    <span class="fc-node-icon">💊</span>
+                    <span class="fc-node-text">Therapie<br><small>(Beginn, Auswahl,<br>Modifikation)</small></span>
+                  </div>
+                </div>
+
+                <div class="fc-branch-wrap">
+                  <div class="fc-branch-line"></div>
+                  <div class="fc-node {% if 'Nachsorge' in existing.get('topics', []) %}fc-node--on{% endif %}"
+                       data-value="Nachsorge" data-cb="fc_cb_3">
+                    <span class="fc-node-icon">📈</span>
+                    <span class="fc-node-text">Nachsorge</span>
+                  </div>
+                </div>
+
+                <div class="fc-branch-wrap">
+                  <div class="fc-branch-line"></div>
+                  <div class="fc-node {% if 'Organisatorische Fragen' in existing.get('topics', []) %}fc-node--on{% endif %}"
+                       data-value="Organisatorische Fragen" data-cb="fc_cb_4">
+                    <span class="fc-node-icon">⚙️</span>
+                    <span class="fc-node-text">Organisato-<br>rische Fragen</span>
+                  </div>
+                </div>
+
+                <div class="fc-branch-wrap">
+                  <div class="fc-branch-line"></div>
+                  <div class="fc-node fc-node--none {% if 'Keine Spezifizierung' in existing.get('topics', []) %}fc-node--on{% endif %}"
+                       data-value="Keine Spezifizierung" data-cb="fc_cb_5">
+                    <span class="fc-node-icon">—</span>
+                    <span class="fc-node-text">Keine<br>Spezifizierung</span>
+                  </div>
+                </div>
+
+              </div>{# /fc-nodes-row #}
+            </div>{# /fc-widget #}
+
+            {# ── Sub-options for Weitere Diagnostik ── #}
+            <div class="fc-sub-panel" id="fc-sub-diagnostik"
+                 style="{% if 'Weitere Diagnostik' not in existing.get('topics', []) %}display:none{% endif %}">
+              <div class="sub-section-label">Art der Diagnostik:<span class="sub-section-hint">Mehrfachauswahl möglich</span></div>
+              <div class="fc-sub-checks">
+                {% set diag_opts = ['Histopathologische Diagnostik', 'Molekulare / Genetische Diagnostik', 'Radiologische Bildgebung (inkl. Sonographie, PET-CT)', 'Laborchemische Diagnostik'] %}
+                {% for opt in diag_opts %}
+                <label class="fc-sub-check">
+                  <input type="checkbox" name="diagnostik_types" value="{{ opt }}"
+                         {% if opt in existing.get('diagnostik_types', []) %}checked{% endif %}>
+                  <span>{{ opt }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            {# ── Sub-options for Therapie ── #}
+            <div class="fc-sub-panel" id="fc-sub-therapie"
+                 style="{% if 'Therapie (Beginn, Auswahl, Modifikation)' not in existing.get('topics', []) %}display:none{% endif %}">
+              <div class="sub-section-label">Vorgeschlagene Therapie:<span class="sub-section-hint">Mehrfachauswahl möglich</span></div>
+              <div class="fc-sub-checks">
+                {% set ther_opts = ['Chirurgische Intervention', 'Strahlentherapie', 'Andere lokoregionäre Therapien', 'Immuntherapie', 'Zielgerichtete Therapie', 'Chemotherapie'] %}
+                {% for opt in ther_opts %}
+                <label class="fc-sub-check">
+                  <input type="checkbox" name="therapie_types" value="{{ opt }}"
+                         {% if opt in existing.get('therapie_types', []) %}checked{% endif %}>
+                  <span>{{ opt }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            <script>
+            (function(){
+              var diagPanel = document.getElementById('fc-sub-diagnostik');
+              var therPanel = document.getElementById('fc-sub-therapie');
+
+              function syncSubPanels() {
+                var diagNode = document.querySelector('#fc_widget .fc-node[data-value="Weitere Diagnostik"]');
+                var therNode = document.querySelector('#fc_widget .fc-node[data-value="Therapie (Beginn, Auswahl, Modifikation)"]');
+                var diagOn = diagNode && diagNode.classList.contains('fc-node--on');
+                var therOn = therNode && therNode.classList.contains('fc-node--on');
+                diagPanel.style.display = diagOn ? '' : 'none';
+                therPanel.style.display = therOn ? '' : 'none';
+                // Clear checkboxes when panel is hidden
+                if (!diagOn) diagPanel.querySelectorAll('input[type="checkbox"]').forEach(function(c){ c.checked = false; });
+                if (!therOn) therPanel.querySelectorAll('input[type="checkbox"]').forEach(function(c){ c.checked = false; });
+              }
+
+              // ── Rail: base line + two active overlays from center to outermost selected ──
+              var railWrap = document.getElementById('fc_rail_wrap');
+              var branchWraps = document.querySelectorAll('#fc_widget .fc-branch-wrap');
+              var centerIndex = 2; // Nachsorge is the 3rd card (index 2)
+
+              // Persistent overlay elements
+              var railBase    = document.createElement('div');
+              var railActiveL = document.createElement('div');
+              var railActiveR = document.createElement('div');
+              railBase.className    = 'fc-rail-base';
+              railActiveL.className = 'fc-rail-active';
+              railActiveR.className = 'fc-rail-active';
+              railWrap.appendChild(railBase);
+              railWrap.appendChild(railActiveL);
+              railWrap.appendChild(railActiveR);
+
+              var branchCenters = []; // pixel offsets relative to railWrap
+
+              function measureCenters() {
+                branchCenters = [];
+                var wrapRect = railWrap.getBoundingClientRect();
+                branchWraps.forEach(function(bw) {
+                  var r = bw.getBoundingClientRect();
+                  branchCenters.push(r.left + r.width / 2 - wrapRect.left);
+                });
+                // base rail spans first to last center
+                railBase.style.left  = branchCenters[0] + 'px';
+                railBase.style.width = (branchCenters[branchCenters.length - 1] - branchCenters[0]) + 'px';
+                // align trunk to center branch
+                var trunk = document.querySelector('#fc_widget .fc-trunk');
+                if (trunk && branchCenters.length > centerIndex) {
+                  var trunkWrap = trunk.parentElement;
+                  var twRect = trunkWrap.getBoundingClientRect();
+                  trunk.style.left = (branchCenters[centerIndex] + wrapRect.left - twRect.left) + 'px';
+                }
+              }
+
+              function syncBranchLines() {
+                var anyOn = false;
+                var leftMost  = centerIndex;
+                var rightMost = centerIndex;
+                branchWraps.forEach(function(wrap, i) {
+                  var line = wrap.querySelector('.fc-branch-line');
+                  var card = wrap.querySelector('.fc-node');
+                  if (line && card) {
+                    var on = card.classList.contains('fc-node--on');
+                    line.classList.toggle('fc-branch-line--on', on);
+                    if (on) {
+                      anyOn = true;
+                      if (i < leftMost)  leftMost  = i;
+                      if (i > rightMost) rightMost = i;
+                    }
+                  }
+                });
+                var trunk = document.querySelector('#fc_widget .fc-trunk');
+                if (trunk) trunk.classList.toggle('fc-trunk--on', anyOn);
+
+                if (!anyOn || branchCenters.length === 0) {
+                  railActiveL.style.width = '0';
+                  railActiveR.style.width = '0';
+                  return;
+                }
+
+                // Left active bar: from leftmost selected center to trunk center
+                if (leftMost < centerIndex) {
+                  railActiveL.style.left  = (branchCenters[leftMost] - 2) + 'px';
+                  railActiveL.style.width = (branchCenters[centerIndex] - branchCenters[leftMost] + 4) + 'px';
+                } else {
+                  railActiveL.style.width = '0';
+                }
+
+                // Right active bar: from trunk center to rightmost selected center
+                if (rightMost > centerIndex) {
+                  railActiveR.style.left  = (branchCenters[centerIndex] - 2) + 'px';
+                  railActiveR.style.width = (branchCenters[rightMost] - branchCenters[centerIndex] + 4) + 'px';
+                } else {
+                  railActiveR.style.width = '0';
+                }
+              }
+
+              document.querySelectorAll('#fc_widget .fc-node').forEach(function(node){
+                node.addEventListener('click', function(){
+                  var cbId = node.dataset.cb;
+                  var cb   = document.getElementById(cbId);
+                  if(!cb) return;
+
+                  // "Keine Spezifizierung" is mutually exclusive
+                  var isNone = node.classList.contains('fc-node--none');
+                  if(isNone){
+                    document.querySelectorAll('#fc_widget .fc-node:not(.fc-node--none)').forEach(function(n){
+                      n.classList.remove('fc-node--on');
+                      var c = document.getElementById(n.dataset.cb);
+                      if(c){ c.checked = false; c.dispatchEvent(new Event('change', {bubbles:true})); }
+                    });
+                  } else {
+                    var noneNode = document.querySelector('#fc_widget .fc-node--none');
+                    if(noneNode){
+                      noneNode.classList.remove('fc-node--on');
+                      var nc = document.getElementById(noneNode.dataset.cb);
+                      if(nc){ nc.checked = false; nc.dispatchEvent(new Event('change', {bubbles:true})); }
+                    }
+                  }
+
+                  var on = node.classList.toggle('fc-node--on');
+                  cb.checked = on;
+                  cb.dispatchEvent(new Event('change', {bubbles:true}));
+                  syncBranchLines();
+                  syncSubPanels();
+                });
+              });
+
+              // initial build + sync
+              measureCenters();
+              syncBranchLines();
+              window.addEventListener('resize', function(){ measureCenters(); syncBranchLines(); });
+            })();
+            </script>
+
+          </div>
+
+        </div>
+      </div>
+
+      {# ════════════════════════════════════════════════════════════════════════
+         STEP: problem_correctness (Nachvollziehbarkeit) – traffic lights
+         ════════════════════════════════════════════════════════════════════════ #}
+      {% elif step.key == 'problem_correctness' %}
+      <div class="eval-body">
+        <div class="text-display">
+          <div class="text-label">Fragestellung – Version {{ 'A' if tab_idx == 0 else 'B' }}</div>
+          <div class="text-content">{{ text_content }}</div>
+        </div>
+        <div class="rating-section">
+          <h3 class="rating-title">Nachvollziehbarkeit des vorgeschlagenen Vorgehens</h3>
+          <div class="tl-housing">
+            <label class="tl-light tl-green">
+              <input type="radio" name="choice" value="Entspricht dem aktuellen Therapiestandard"
+                     {% if existing.get('choice') == 'Entspricht dem aktuellen Therapiestandard (i.e. "best-practice")' %}checked{% endif %} required>
+              <span class="tl-bulb"></span>
+              <span class="tl-opt-label">Entspricht dem aktuellen Therapiestandard (i.e. "best-practice")</span>
+            </label>
+            <label class="tl-light tl-amber">
+              <input type="radio" name="choice" value="Entspricht nicht dem aktuellen Therapiestandard (i.e. \"not best-practice\"), ist aber medizinisch nachvollziehbar"
+                     {% if existing.get('choice') == 'Entspricht nicht dem aktuellen Therapiestandard (i.e. "not best-practice"), ist aber medizinisch nachvollziehbar' %}checked{% endif %} required>
+              <span class="tl-bulb"></span>
+              <span class="tl-opt-label">Entspricht nicht dem aktuellen Therapiestandard (i.e. "not best-practice"), ist aber medizinisch nachvollziehbar</span>
+            </label>
+            <label class="tl-light tl-red">
+              <input type="radio" name="choice" value="Medizinisch nicht nachvollziehbar"
+                     {% if existing.get('choice') == 'Medizinisch nicht nachvollziehbar' %}checked{% endif %} required>
+              <span class="tl-bulb"></span>
+              <span class="tl-opt-label">Medizinisch nicht nachvollziehbar</span>
+            </label>
+            <label class="tl-light tl-gray">
+              <input type="radio" name="choice" value="Nicht spezifisch genug für eine Beurteilung"
+                     {% if existing.get('choice') == 'Nicht spezifisch genug für eine Beurteilung' %}checked{% endif %} required>
+              <span class="tl-bulb"></span>
+              <span class="tl-opt-label">Nicht spezifisch genug für eine Beurteilung</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {# ════════════════════════════════════════════════════════════════════════
+         STEP: problem_specificity
+         ════════════════════════════════════════════════════════════════════════ #}
+      {% elif step.key == 'problem_specificity' %}
+      <div class="eval-body">
+        <div class="text-display">
+          <div class="text-label">Fragestellung – Version {{ 'A' if tab_idx == 0 else 'B' }}</div>
+          <div class="text-content">{{ text_content }}</div>
+        </div>
+        <div class="rating-section">
+          <h3 class="rating-title">{{ step.subtitle }}</h3>
+          <p class="tl-question">Alle relevanten Aspekte des Falls werden berücksichtigt.</p>
+          <div class="tl-housing">
+            <label class="tl-light tl-green">
+              <input type="radio" name="choice" value="Trifft zu"
+                     {% if existing.get('choice') == 'Trifft zu' %}checked{% endif %} required>
+              <span class="tl-bulb"></span>
+              <span class="tl-opt-label">Trifft zu</span>
+            </label>
+            <label class="tl-light tl-amber">
+              <input type="radio" name="choice" value="Trifft teilweise zu"
+                     {% if existing.get('choice') == 'Trifft teilweise zu' %}checked{% endif %} required>
+              <span class="tl-bulb"></span>
+              <span class="tl-opt-label">Trifft teilweise zu</span>
+            </label>
+            <label class="tl-light tl-red">
+              <input type="radio" name="choice" value="Trifft nicht zu"
+                     {% if existing.get('choice') == 'Trifft nicht zu' %}checked{% endif %} required>
+              <span class="tl-bulb"></span>
+              <span class="tl-opt-label">Trifft nicht zu</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {# ════════════════════════════════════════════════════════════════════════
+         STEP: final_overall
+         ════════════════════════════════════════════════════════════════════════ #}
+      {% elif step.key == 'final_overall' %}
+      <div class="eval-body eval-body--final">
+        <div class="final-card">
+          <div class="final-card__header">
+            <h3 class="final-card__title">Komplexität des Falls</h3>
+            <p class="final-card__subtitle">Wie schätzen Sie die klinische Komplexität dieses Falls ein?</p>
+          </div>
+          <div class="final-card__body">
+            <div class="vas-wrap vas-wrap--final">
+              <div class="vas8-bar" id="vas-bar">
+                <div class="vas8-track-line"></div>
+                <div class="vas8-fill" id="vas-fill"></div>
+                <div class="vas8-thumb" id="vas-thumb"></div>
+              </div>
+              <div class="vas-tick-labels">
+                <span>0 &mdash; Sehr gering</span>
+                <span>Sehr hoch &mdash; 100</span>
+              </div>
+              <input type="hidden" name="vas_score" id="vas-hidden"
+                     value="{{ existing.get('vas_score', '') }}">
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# ── full-width comment ────────────────────────────────────────────── #}
+      <div class="full-comment">{{ comment_block(existing) }}</div>
+
+      {# ── navigation buttons ──────────────────────────────────────────────── #}
+      <div class="form-actions">
+        {% if prev_url %}
+        <a href="{{ prev_url }}" class="btn btn-secondary">&larr; Zurück</a>
+        {% else %}
+        <span></span>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary"
+          {% if step.key == 'final_overall' and not all_prior_done %}
+          disabled title="Fehlende Schritte: {{ missing_step_names | join(', ') }}"
+          {% endif %}>
+          {% if step.key == 'final_overall' %}
+            Fall abschließen &#10003;
+          {% elif step.has_tabs and tab_idx == 0 %}
+            Weiter zu Version B &rarr;
+          {% elif step_idx == (rating_steps | length - 1) %}
+            Weiter &rarr;
+          {% else %}
+            Weiter &rarr;
+          {% endif %}
+        </button>
+      </div>
+
+    </form>
+  </div>{# end .eval-card #}
+
+</div>{# end .evaluate-layout #}
+
+{# ── "Fall abgeschlossen" toast ──────────────────────────────────────────── #}
+{% if step.key == 'final_overall' %}
+<div id="case-done-toast" style="
+  display:none; position:fixed; inset:0; z-index:9999;
+  background:rgba(0,0,0,.45);
+  align-items:center; justify-content:center;">
+  <div style="
+    background:#fff; border-radius:14px;
+    padding:2.25rem 3rem; box-shadow:0 8px 32px rgba(0,0,0,.25);
+    text-align:center; max-width:380px; width:90%;">
+    <div style="font-size:2.5rem; margin-bottom:.75rem; color:#15803d;">&#10003;</div>
+    <p style="font-size:1.15rem; font-weight:700; color:#1a4f8a; margin:0 0 .35rem;">
+      Fall abgeschlossen
+    </p>
+    <p style="font-size:.88rem; color:#6b7280; margin:0;">
+      Ihre Bewertungen wurden gespeichert.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+
+<script>
+/* Authoritative slug → original info-item label map.
+   Built server-side from INFO_ITEMS so the original German capitalisation
+   (e.g. "Aktueller Status: Stadium der Erkrankung") is preserved exactly,
+   without us having to guess which words are nouns. Any client-side label
+   resolution should consult this map first. */
+window.INFO_LABELS = {
+  {% for item in info_items %}{{ slugify(item)|tojson }}: {{ item|tojson }}{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+</script>
+
+<script>
+/* ── Demo entry: highlight until this step's demo has been opened ─────── */
+(function() {
+  var demo = document.getElementById('task-demo');
+  if (!demo) return;
+  function syncSeen() {
+    try {
+      demo.classList.toggle('task-card--unseen', !localStorage.getItem(demo.getAttribute('data-seen-key')));
+    } catch (e) {}
+  }
+  syncSeen();
+  document.addEventListener('tbeval-demo-closed', syncSeen);
+})();
+
+/* ── falseinfo: show/hide sub-form ─────────────────────────────────────── */
+function toggleFalseinfo(slug, checked) {
+  var card  = document.getElementById('fi_' + slug);
+  var sub   = document.getElementById('fisub_' + slug);
+  var badge = card ? card.querySelector('.fi-badge') : null;
+  if (card)  card.classList.toggle('fi-card--active', checked);
+  if (sub)   sub.classList.toggle('hidden', !checked);
+  if (badge) {
+    badge.classList.toggle('fi-badge--on', checked);
+    badge.textContent = checked ? '⚠ Fehlerhaft' : 'Korrekt';
+  }
+  /* Toggle permanent red highlight on text excerpts */
+  var spans = document.querySelectorAll('.hl-info[data-hl-slug="' + slug + '"], .hl-manual[data-hl-slug="' + slug + '"]');
+  spans.forEach(function(el) {
+    el.classList.toggle('hl-info--error', checked);
+  });
+}
+
+/* ── falseinfo: hover-highlight corresponding text excerpts ───────────── */
+function highlightExcerpts(slug, on) {
+  /* Match primary slug OR slug listed in data-hl-slugs (overlapping highlights) */
+  var spans = document.querySelectorAll(
+    '.hl-info[data-hl-slug="' + slug + '"], .hl-manual[data-hl-slug="' + slug + '"]'
+  );
+  /* Also match multi-slug spans where this slug is secondary */
+  document.querySelectorAll('.hl-info[data-hl-slugs]').forEach(function(el) {
+    var slugs = el.getAttribute('data-hl-slugs').split(',');
+    if (slugs.indexOf(slug) >= 0) {
+      el.classList.toggle('hl-info--active', on);
+    }
+  });
+  spans.forEach(function(el) {
+    el.classList.toggle('hl-info--active', on);
+  });
+  /* Highlight footnote badges for this slug */
+  document.querySelectorAll('.hl-footnote[data-hl-slug="' + slug + '"]').forEach(function(fn) {
+    fn.classList.toggle('hl-footnote--active', on);
+  });
+  /* Also highlight the card itself while hovering */
+  var card = document.getElementById('fi_' + slug);
+  if (card) card.classList.toggle('fi-card--hover', on);
+  /* Highlight the tree endpoint node */
+  highlightTreeEndpoint(slug, on);
+  /* Scroll first match into view */
+  if (on && spans.length > 0) {
+    var container = spans[0].closest('.text-content');
+    if (container) {
+      var rect = spans[0].getBoundingClientRect();
+      var cRect = container.getBoundingClientRect();
+      if (rect.top < cRect.top || rect.bottom > cRect.bottom) {
+        spans[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }
+  /* Show/hide ground-truth tooltip (dashboard data only) */
+  var tip = document.getElementById('protocol-tooltip');
+  if (!tip) return;
+  if (on) {
+    var sections = (typeof _groundTruthExcerpts !== 'undefined')
+      ? (_groundTruthExcerpts[slug] || null)
+      : null;
+    if (sections && sections.length > 0) {
+      tip.innerHTML = sections.map(function(s) {
+        return '<div class="protocol-tooltip-label">' + _escHtml(s.label) + ':</div>' +
+          (s.items || []).map(function(e) {
+            return '<div class="protocol-tooltip-excerpt">' + _escHtml(e) + '</div>';
+          }).join('');
+      }).join('');
+      tip.classList.add('protocol-tooltip--visible');
+      _attachProtocolTooltipFollow(tip);
+    } else {
+      tip.classList.remove('protocol-tooltip--visible');
+      _detachProtocolTooltipFollow();
+    }
+  } else {
+    tip.classList.remove('protocol-tooltip--visible');
+    _detachProtocolTooltipFollow();
+  }
+}
+
+/* Make the Patientenakte tooltip follow the mouse cursor while visible.
+   Placed to the bottom right of the cursor (like a native browser tooltip);
+   flips left/up when it would leave the viewport. */
+var _protocolTooltipMoveHandler = null;
+var _lastPointer = null;
+document.addEventListener('mousemove', function(e) {
+  _lastPointer = { x: e.clientX, y: e.clientY };
+}, { passive: true });
+function _placeProtocolTooltip(tip, x, y) {
+  var offX = 12, offY = 20;            /* clear the cursor arrow */
+  var w = tip.offsetWidth;
+  var h = tip.offsetHeight;
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+  var left = x + offX;
+  if (left + w > vw - 8) left = Math.max(8, x - w - offX);
+  var top = y + offY;
+  if (top + h > vh - 8) top = Math.max(8, y - h - 8);
+  tip.style.position = 'fixed';
+  tip.style.left = left + 'px';
+  tip.style.top = top + 'px';
+}
+function _attachProtocolTooltipFollow(tip) {
+  if (_lastPointer) _placeProtocolTooltip(tip, _lastPointer.x, _lastPointer.y);
+  if (_protocolTooltipMoveHandler) return;
+  _protocolTooltipMoveHandler = function(e) {
+    _placeProtocolTooltip(tip, e.clientX, e.clientY);
+  };
+  document.addEventListener('mousemove', _protocolTooltipMoveHandler);
+}
+function _detachProtocolTooltipFollow() {
+  if (!_protocolTooltipMoveHandler) return;
+  document.removeEventListener('mousemove', _protocolTooltipMoveHandler);
+  _protocolTooltipMoveHandler = null;
+}
+
+/* ── highlight tree endpoint node from text hover ──────────────────────── */
+function highlightTreeEndpoint(slug, on) {
+  var epgs = document.querySelectorAll('.rt-endpoint-g[data-slug="' + slug + '"]');
+  epgs.forEach(function(el) {
+    el.classList.toggle('rt-endpoint-g--hover', on);
+    if (on) {
+      var svg = el.closest('svg');
+      if (svg) {
+        var container = svg.parentElement;
+        if (container) {
+          var rect = el.getBoundingClientRect();
+          var cRect = container.getBoundingClientRect();
+          if (rect.top < cRect.top || rect.bottom > cRect.bottom) {
+            container.scrollTop += rect.top - cRect.top - cRect.height / 2;
+          }
+        }
+      }
+    }
+  });
+}
+
+/* ── text span interactions: hover links span, card and Patientenakte tooltip ── */
+(function() {
+  document.querySelectorAll('.hl-info[data-hl-slug]').forEach(function(span) {
+    /* Display-only for evaluators (annotation is done by the study team):
+       hovering links the span to its card and shows the Patientenakte tooltip. */
+    span.addEventListener('mouseenter', function() {
+      var slug     = span.getAttribute('data-hl-slug');
+      var allSlugs = span.getAttribute('data-hl-slugs');
+      highlightExcerpts(slug, true);
+      if (allSlugs) {
+        allSlugs.split(',').forEach(function(s) {
+          if (s !== slug) highlightExcerpts(s, true);
+        });
+      }
+    });
+    span.addEventListener('mouseleave', function() {
+      var slug     = span.getAttribute('data-hl-slug');
+      var allSlugs = span.getAttribute('data-hl-slugs');
+      highlightExcerpts(slug, false);
+      if (allSlugs) {
+        allSlugs.split(',').forEach(function(s) {
+          if (s !== slug) highlightExcerpts(s, false);
+        });
+      }
+    });
+  });
+
+  /* Footnote badge interactions — extracted so dynamically-created badges
+     (from manual overlap selections) can register the same handlers. */
+  function attachFootnoteEvents(fn) {
+    if (fn._fnEventsAttached) return;
+    fn._fnEventsAttached = true;
+    var slug = fn.getAttribute('data-hl-slug');
+    fn.addEventListener('mouseenter', function() {
+      highlightExcerpts(slug, true);
+      highlightTreeEndpoint(slug, true);
+    });
+    fn.addEventListener('mouseleave', function() {
+      highlightExcerpts(slug, false);
+      highlightTreeEndpoint(slug, false);
+    });
+  }
+  document.querySelectorAll('.hl-footnote[data-hl-slug]').forEach(attachFootnoteEvents);
+  window.attachFootnoteEvents = attachFootnoteEvents;
+})();
+
+function _escHtml(s) {
+  var d = document.createElement('div');
+  d.appendChild(document.createTextNode(s));
+  return d.innerHTML;
+}
+
+/* ── manual text annotation: select text → assign to item ──────────────── */
+var _assignRange = null;
+var _manualAnnotations = {};  /* slug → [text, …] */
+
+/* Load saved annotations */
+(function() {
+  var inp = document.getElementById('manual-annotations-input');
+  if (inp && inp.value && inp.value !== '{}') {
+    try { _manualAnnotations = JSON.parse(inp.value); } catch(e) {}
+  }
+  /* Apply saved manual annotations as highlights */
+  var tc = document.querySelector('#tree-textpanel .text-content');
+  if (tc) applyManualAnnotations(tc);
+
+  /* Listen for text selection inside the text panel */
+  if (tc) {
+    tc.addEventListener('mouseup', function(e) {
+      /* Small delay to let selection finalize */
+      setTimeout(function() { onTextSelected(e); }, 10);
+    });
+  }
+})();
+
+function onTextSelected(e) {
+  var sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+    return;
+  }
+  var tc = document.querySelector('#tree-textpanel .text-content');
+  if (!tc) return;
+  /* Ensure selection is within the text panel */
+  if (!tc.contains(sel.anchorNode) || !tc.contains(sel.focusNode)) return;
+
+  _assignRange = sel.getRangeAt(0).cloneRange();
+  var selectedText = sel.toString().trim();
+  if (selectedText.length < 2) return;
+
+  /* Show popup near selection */
+  var popup = document.getElementById('hl-assign-popup');
+  if (!popup) return;
+  var rect = _assignRange.getBoundingClientRect();
+  popup.classList.add('hl-assign-popup--open');
+
+  /* Position next to the cursor / end of selection. */
+  var popupW = popup.offsetWidth || 320;
+  var popupH = popup.offsetHeight || 370;
+  var gap = 12;
+
+  /* Anchor: where the user released the mouse, fall back to selection end. */
+  var anchorX = (e && typeof e.clientX === 'number' && e.clientX > 0)
+    ? e.clientX : rect.right;
+  var anchorY = (e && typeof e.clientY === 'number' && e.clientY > 0)
+    ? e.clientY : rect.bottom;
+
+  /* Prefer right of cursor; flip to left if no room. */
+  var left = anchorX + gap;
+  if (left + popupW > window.innerWidth - 10) {
+    left = anchorX - popupW - gap;
+  }
+  if (left < 10) left = 10;
+
+  /* Place just below the cursor; flip above if it would overflow. */
+  var top = anchorY + gap;
+  if (top + popupH > window.innerHeight - 10) {
+    top = anchorY - popupH - gap;
+  }
+  if (top < 10) top = 10;
+
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+
+  /* Show selected text preview */
+  var selLabel = document.getElementById('hl-assign-seltext');
+  if (selLabel) {
+    selLabel.textContent = '"' + (selectedText.length > 80 ? selectedText.substring(0, 77) + '…' : selectedText) + '"';
+  }
+
+  /* Update active states */
+  updateAssignPopupStates();
+
+  /* Focus search */
+  var search = document.getElementById('hl-assign-search');
+  if (search) { search.value = ''; filterAssignItems(''); search.focus(); }
+}
+
+function closeAssignPopup() {
+  var popup = document.getElementById('hl-assign-popup');
+  if (popup) popup.classList.remove('hl-assign-popup--open');
+  _assignRange = null;
+  window.getSelection().removeAllRanges();
+}
+
+function updateAssignPopupStates() {
+  var items = document.querySelectorAll('.hl-assign-popup-item');
+  items.forEach(function(btn) {
+    var slug = btn.getAttribute('data-slug');
+    /* Green dot = item is already set to "enthalten" in the tree */
+    var inp = document.getElementById('rt-inp-' + slug);
+    var isYes = inp && inp.value === 'yes';
+    btn.classList.toggle('hl-assign-popup-item--active', isYes);
+  });
+}
+
+function filterAssignItems(query) {
+  var items = document.querySelectorAll('.hl-assign-popup-item');
+  var q = query.toLowerCase();
+  items.forEach(function(btn) {
+    var text = btn.textContent.toLowerCase();
+    btn.style.display = (!q || text.indexOf(q) >= 0) ? '' : 'none';
+  });
+}
+
+/* Search input handler */
+(function() {
+  var search = document.getElementById('hl-assign-search');
+  if (search) {
+    search.addEventListener('input', function() {
+      filterAssignItems(this.value);
+    });
+    search.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeAssignPopup();
+    });
+  }
+})();
+
+function assignAnnotation(slug) {
+  if (!_assignRange) return;
+  var selectedText = _assignRange.toString().trim();
+  if (!selectedText) { closeAssignPopup(); return; }
+
+  /* Detect existing hl-info / hl-manual spans that overlap the user's
+     selection BEFORE we wrap it. Each such span gets a green footnote
+     badge for the new slug, mirroring the server-side overlap behaviour
+     for pre-rendered highlights. */
+  var overlapSpans = (function() {
+    var tc = document.querySelector('#tree-textpanel .text-content');
+    if (!tc) return [];
+    var hits = [];
+    tc.querySelectorAll('.hl-info[data-hl-slug], .hl-manual[data-hl-slug]').forEach(function(s) {
+      if (s.getAttribute('data-hl-slug') === slug) return; /* same slug already there */
+      try {
+        var r = document.createRange();
+        r.selectNodeContents(s);
+        /* Range.intersectsNode/compareBoundaryPoints — true if any overlap */
+        var overlaps = (
+          _assignRange.compareBoundaryPoints(Range.END_TO_START, r) < 0 &&
+          _assignRange.compareBoundaryPoints(Range.START_TO_END, r) > 0
+        );
+        if (overlaps) hits.push(s);
+      } catch(e) {}
+    });
+    return hits;
+  })();
+
+  /* Wrap selection in a manual highlight span.
+     Use surroundContents for simple cases; for cross-boundary
+     selections, split text nodes and wrap each part individually. */
+  var success = false;
+  var firstSpan = null;
+  try {
+    /* surroundContents only works if the range doesn't partially
+       select a non-text node */
+    var span = document.createElement('span');
+    span.className = 'hl-manual hl-manual--yes';
+    span.setAttribute('data-hl-slug', slug);
+    _assignRange.surroundContents(span);
+    attachManualSpanEvents(span);
+    firstSpan = span;
+    success = true;
+  } catch(e) {
+    /* Cross-boundary fallback: highlight each text node segment
+       within the range separately */
+    var tc = document.querySelector('#tree-textpanel .text-content');
+    if (tc) {
+      var walker = document.createTreeWalker(tc, NodeFilter.SHOW_TEXT, null, false);
+      var textNodes = [];
+      var node;
+      while ((node = walker.nextNode())) {
+        if (_assignRange.intersectsNode(node)) {
+          textNodes.push(node);
+        }
+      }
+      textNodes.forEach(function(tn) {
+        var start = 0, end = tn.textContent.length;
+        if (tn === _assignRange.startContainer) start = _assignRange.startOffset;
+        if (tn === _assignRange.endContainer) end = _assignRange.endOffset;
+        if (start >= end) return;
+        var r = document.createRange();
+        r.setStart(tn, start);
+        r.setEnd(tn, end);
+        var s = document.createElement('span');
+        s.className = 'hl-manual hl-manual--yes';
+        s.setAttribute('data-hl-slug', slug);
+        r.surroundContents(s);
+        attachManualSpanEvents(s);
+        if (!firstSpan) firstSpan = s;
+      });
+      success = textNodes.length > 0;
+    }
+  }
+
+  if (!success) { closeAssignPopup(); return; }
+
+  /* For each pre-existing overlapping span, add a green footnote badge
+     for the new slug. If the span had no footnotes yet, also prepend a
+     "1" badge for its own (primary) slug so the numbering reads naturally. */
+  if (overlapSpans.length) {
+    var newLabel = (window.INFO_LABELS && window.INFO_LABELS[slug]) || slug;
+    overlapSpans.forEach(function(host) {
+      /* Find existing footnote badges immediately following this host. */
+      var fns = [];
+      var sib = host.nextSibling;
+      while (sib && sib.nodeType === 1 && sib.classList && sib.classList.contains('hl-footnote')) {
+        fns.push(sib);
+        sib = sib.nextSibling;
+      }
+      /* Skip if a footnote for this slug already exists. */
+      if (fns.some(function(f){ return f.getAttribute('data-hl-slug') === slug; })) return;
+
+      /* Bootstrap "1" footnote for the host's own slug if there are none yet. */
+      if (fns.length === 0) {
+        var ownSlug = host.getAttribute('data-hl-slug');
+        var ownLabel = (window.INFO_LABELS && window.INFO_LABELS[ownSlug]) || ownSlug;
+        var firstFn = document.createElement('sup');
+        firstFn.className = 'hl-footnote';
+        firstFn.setAttribute('data-hl-slug', ownSlug);
+        firstFn.setAttribute('title', ownLabel);
+        firstFn.textContent = '1';
+        if (state && state[ownSlug] === 'yes') firstFn.classList.add('hl-footnote--yes');
+        host.parentNode.insertBefore(firstFn, host.nextSibling);
+        if (typeof window.attachFootnoteEvents === 'function') {
+          window.attachFootnoteEvents(firstFn);
+        }
+        fns.push(firstFn);
+      }
+
+      /* Append the new green badge for the user-assigned slug. */
+      var newFn = document.createElement('sup');
+      newFn.className = 'hl-footnote hl-footnote--yes';
+      newFn.setAttribute('data-hl-slug', slug);
+      newFn.setAttribute('title', newLabel);
+      newFn.textContent = String(fns.length + 1);
+      var lastFn = fns[fns.length - 1];
+      lastFn.parentNode.insertBefore(newFn, lastFn.nextSibling);
+      if (typeof window.attachFootnoteEvents === 'function') {
+        window.attachFootnoteEvents(newFn);
+      }
+
+      /* Update host's data-hl-slugs so hover/click code treats it as multi. */
+      var slugs = (host.getAttribute('data-hl-slugs') || host.getAttribute('data-hl-slug') || '').split(',').filter(Boolean);
+      if (slugs.indexOf(slug) === -1) slugs.push(slug);
+      host.setAttribute('data-hl-slugs', slugs.join(','));
+    });
+  }
+
+  /* Store the annotation */
+  if (!_manualAnnotations[slug]) _manualAnnotations[slug] = [];
+  _manualAnnotations[slug].push(selectedText);
+  saveManualAnnotations();
+
+  /* Set the tree item to "yes" (enthalten) */
+  if (typeof window.rtToggleItem === 'function') {
+    /* Only set to yes if not already yes */
+    var inp = document.getElementById('rt-inp-' + slug);
+    if (inp && inp.value !== 'yes') {
+      window.rtToggleItem(slug);
+    }
+  }
+
+  closeAssignPopup();
+}
+
+function attachManualSpanEvents(span) {
+  var slug = span.getAttribute('data-hl-slug');
+  span.addEventListener('mouseenter', function() {
+    highlightExcerpts(slug, true);
+  });
+  span.addEventListener('mouseleave', function() {
+    highlightExcerpts(slug, false);
+  });
+}
+
+function saveManualAnnotations() {
+  var inp = document.getElementById('manual-annotations-input');
+  if (inp) inp.value = JSON.stringify(_manualAnnotations);
+}
+
+function applyManualAnnotations(container) {
+  /* Walk all text nodes, find stored excerpts, wrap in spans */
+  for (var slug in _manualAnnotations) {
+    var excerpts = _manualAnnotations[slug];
+    for (var i = 0; i < excerpts.length; i++) {
+      wrapTextInContainer(container, excerpts[i], slug);
+    }
+  }
+}
+
+function wrapTextInContainer(container, text, slug) {
+  /* Find the text in the container's textContent via TreeWalker */
+  var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+  var node;
+  while ((node = walker.nextNode())) {
+    var idx = node.textContent.indexOf(text);
+    if (idx >= 0) {
+      var range = document.createRange();
+      range.setStart(node, idx);
+      range.setEnd(node, idx + text.length);
+      var span = document.createElement('span');
+      span.className = 'hl-manual hl-manual--yes';
+      span.setAttribute('data-hl-slug', slug);
+      range.surroundContents(span);
+      attachManualSpanEvents(span);
+      return;
+    }
+  }
+}
+
+/* Close popup on outside click */
+document.addEventListener('mousedown', function(e) {
+  var popup = document.getElementById('hl-assign-popup');
+  if (popup && popup.classList.contains('hl-assign-popup--open')) {
+    if (!popup.contains(e.target)) {
+      closeAssignPopup();
+    }
+  }
+});
+
+/* Prevent popup clicks from clearing the text selection */
+(function() {
+  var popup = document.getElementById('hl-assign-popup');
+  if (popup) {
+    popup.addEventListener('mousedown', function(e) {
+      /* Allow the search input to receive focus normally */
+      if (e.target.id === 'hl-assign-search') return;
+      e.preventDefault();
+    });
+  }
+})();
+
+/* ── missinginfo: accordion toggle & auto-advance ──────────────────────── */
+function toggleMiCard(slug) {
+  var card = document.getElementById('mic_' + slug);
+  if (!card) return;
+  var willExpand = card.classList.contains('mi-card--collapsed');
+  if (willExpand) {
+    document.querySelectorAll('.mi-card').forEach(function(c) {
+      c.classList.add('mi-card--collapsed');
+    });
+  }
+  card.classList.toggle('mi-card--collapsed');
+}
+
+function onMiChange(slug) {
+  var card = document.getElementById('mic_' + slug);
+  if (!card) return;
+  var sev  = card.querySelector('input[name^="severity_"]:checked');
+  var prob = card.querySelector('input[name^="prob_"]:checked');
+  if (sev && prob) {
+    card.classList.add('mi-card--done');
+    var badge = card.querySelector('.mi-done-badge');
+    if (badge) badge.style.display = '';
+    /* Brief pause so the reviewer sees the just-completed card
+       acknowledged (done badge + green border) before it collapses
+       and the next card opens. */
+    setTimeout(function () {
+      card.classList.add('mi-card--collapsed');
+      var next = card.nextElementSibling;
+      while (next) {
+        if (next.classList.contains('mi-card') && !next.classList.contains('mi-card--done')) {
+          next.classList.remove('mi-card--collapsed');
+          next.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          break;
+        }
+        next = next.nextElementSibling;
+      }
+    }, 850);
+  }
+}
+
+/* auto-expand first incomplete mi-card on load */
+(function () {
+  var cards = document.querySelectorAll('.mi-card');
+  if (!cards.length) return;
+  /* Falseinfo cards stay collapsed by default — reviewers open them via
+     the red highlights in the text (track-changes style). */
+  var nonFalse = Array.prototype.filter.call(cards, function(c) {
+    return !c.classList.contains('mi-card--falseinfo');
+  });
+  for (var i = 0; i < nonFalse.length; i++) {
+    if (!nonFalse[i].classList.contains('mi-card--done')) {
+      nonFalse[i].classList.remove('mi-card--collapsed');
+      break;
+    }
+  }
+})();
+
+/* ── falseinfo: clicking a red highlight opens its card; hovering it
+   also highlights the card (the reverse — card hover → span highlight —
+   is wired through highlightExcerpts already). ───────────────────────── */
+(function () {
+  var spans = document.querySelectorAll('.hl-info--error[data-hl-slug]');
+  if (!spans.length) return;
+  spans.forEach(function(span) {
+    var slug = span.getAttribute('data-hl-slug');
+    span.style.cursor = 'pointer';
+    span.addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      var card = document.getElementById('mic_' + slug);
+      if (!card) return;
+      if (card.classList.contains('mi-card--collapsed')) {
+        toggleMiCard(slug);
+      }
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    span.addEventListener('mouseenter', function() {
+      var card = document.getElementById('mic_' + slug);
+      if (card) card.classList.add('mi-card--hover');
+    });
+    span.addEventListener('mouseleave', function() {
+      var card = document.getElementById('mic_' + slug);
+      if (card) card.classList.remove('mi-card--hover');
+    });
+  });
+})();
+
+/* ── comment toggle ─────────────────────────────────────────────────────── */
+function toggleComment(btn) {
+  var body = btn.nextElementSibling;
+  if (body) {
+    body.classList.toggle('comment-open');
+  }
+}
+
+/* ── chip single-select (radio) visual highlight ─────────────────────────── */
+document.querySelectorAll('.chip-group:not(.chip-group--multi) .chip-option input[type="radio"]')
+  .forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      var group = this.closest('.chip-group');
+      if (group) {
+        group.querySelectorAll('.chip-option').forEach(function(opt) {
+          opt.classList.remove('selected');
+        });
+      }
+      this.closest('.chip-option').classList.add('selected');
+    });
+  });
+
+/* ── chip multi-select (checkbox) visual highlight ──────────────────────── */
+document.querySelectorAll('.chip-group--multi .chip-option input[type="checkbox"]')
+  .forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      this.closest('.chip-option').classList.toggle('selected', this.checked);
+    });
+  });
+
+/* ── rating scale: visual highlight + description display ──────────────── */
+document.querySelectorAll('.rating-scale input[type="radio"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    var scale = this.closest('.rating-scale');
+    if (scale) {
+      scale.querySelectorAll('.rating-option').forEach(function(opt) {
+        opt.classList.remove('selected');
+      });
+    }
+    this.closest('.rating-option').classList.add('selected');
+    var desc = this.getAttribute('data-desc');
+    var section = this.closest('.rating-section');
+    if (section && desc) {
+      var display = section.querySelector('.rating-desc-display');
+      if (display) { display.textContent = desc; display.style.display = ''; }
+    }
+  });
+});
+
+/* ── VAS slider: live fill + value display ──────────────────────────────── */
+(function() {
+  var slider = document.getElementById('vas-slider');
+  var display = document.getElementById('vas-display');
+  if (!slider) return;
+
+  /* Interpolate red(#b91c1c) → yellow(#eab308) → green(#15803d) */
+  function vasColor(pct) {
+    var r, g, b;
+    if (pct <= 0.5) {
+      var t = pct / 0.5;
+      r = Math.round(185 + (234 - 185) * t);
+      g = Math.round(28  + (179 - 28)  * t);
+      b = Math.round(28  + (8   - 28)  * t);
+    } else {
+      var t = (pct - 0.5) / 0.5;
+      r = Math.round(234 + (21  - 234) * t);
+      g = Math.round(179 + (128 - 179) * t);
+      b = Math.round(8   + (61  - 8)   * t);
+    }
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+
+  function updateVas() {
+    var pct = (slider.value - slider.min) / (slider.max - slider.min);
+    var pctPx = (pct * 100).toFixed(1) + '%';
+    var color = vasColor(pct);
+    /* re-apply full gradient but clip unvisited portion to light gray */
+    slider.style.background =
+      'linear-gradient(to right, #b91c1c 0%, #eab308 50%, #15803d 100%)';
+    /* overlay: transparent up to thumb, gray after */
+    slider.style.backgroundImage =
+      'linear-gradient(to right, transparent 0%, transparent ' + pctPx + ', #e5e7eb ' + pctPx + ', #e5e7eb 100%),' +
+      'linear-gradient(to right, #b91c1c 0%, #eab308 50%, #15803d 100%)';
+    /* colour the thumb to match current position */
+    var styleEl = document.getElementById('vas-thumb-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'vas-thumb-style';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent =
+      '#vas-slider::-webkit-slider-thumb { background: ' + color + ' !important; box-shadow: 0 0 0 2px ' + color + ', 0 2px 6px rgba(0,0,0,.2) !important; }' +
+      '#vas-slider::-moz-range-thumb    { background: ' + color + ' !important; box-shadow: 0 0 0 2px ' + color + ' !important; }';
+    if (display) display.style.color = color;
+    if (display) display.textContent = slider.value;
+  }
+  slider.addEventListener('input', updateVas);
+  updateVas();
+})();
+
+/* ── VAS2: blue, uninitialized custom slider ─────────────────────────────── */
+(function() {
+  var bar    = document.getElementById('vas2-bar');
+  if (!bar) return;
+  var fill   = document.getElementById('vas2-fill');
+  var thumb  = document.getElementById('vas2-thumb');
+  var hidden = document.getElementById('vas2-hidden');
+
+  function setVal(clientX) {
+    var rect = bar.getBoundingClientRect();
+    var pct  = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    fill.style.width     = (pct * 100).toFixed(1) + '%';
+    thumb.style.left     = (pct * 100).toFixed(1) + '%';
+    thumb.style.display  = 'block';
+    hidden.value         = Math.round(pct * 100);
+  }
+
+  /* Restore saved state */
+  if (hidden.value !== '') {
+    var initPct = parseInt(hidden.value, 10) / 100;
+    fill.style.width    = (initPct * 100).toFixed(1) + '%';
+    thumb.style.left    = (initPct * 100).toFixed(1) + '%';
+    thumb.style.display = 'block';
+  }
+
+  var dragging = false;
+  bar.addEventListener('mousedown', function(e) {
+    dragging = true;
+    setVal(e.clientX);
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (dragging) setVal(e.clientX);
+  });
+  document.addEventListener('mouseup', function() { dragging = false; });
+  bar.addEventListener('touchstart', function(e) {
+    setVal(e.touches[0].clientX);
+  }, { passive: true });
+  bar.addEventListener('touchmove', function(e) {
+    setVal(e.touches[0].clientX);
+    e.preventDefault();
+  }, { passive: false });
+})();
+
+/* ── VAS3: crosshair, click-only ────────────────────────────────────────── */
+(function() {
+  [['vas-bar','vas-fill','vas-thumb','vas-hidden']].forEach(function(ids) {
+    var bar    = document.getElementById(ids[0]);
+    if (!bar) return;
+    var fill   = document.getElementById(ids[1]);
+    var thumb  = document.getElementById(ids[2]);
+    var hidden = document.getElementById(ids[3]);
+
+    function setVal(clientX) {
+      var rect = bar.getBoundingClientRect();
+      var pct  = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      fill.style.width    = (pct * 100).toFixed(1) + '%';
+      thumb.style.left    = (pct * 100).toFixed(1) + '%';
+      thumb.style.display = 'block';
+      hidden.value        = Math.round(pct * 100);
+    }
+
+    if (hidden.value !== '') {
+      var initPct = parseInt(hidden.value, 10) / 100;
+      fill.style.width    = (initPct * 100).toFixed(1) + '%';
+      thumb.style.left    = (initPct * 100).toFixed(1) + '%';
+      thumb.style.display = 'block';
+    }
+
+    bar.addEventListener('click', function(e) { setVal(e.clientX); });
+    bar.addEventListener('touchstart', function(e) { setVal(e.touches[0].clientX); }, { passive: true });
+  });
+})();
+
+/* ── VAS4/5/6: shared drag factory ─────────────────────────────────────── */
+(function() {
+  var configs = [
+    { bar: 'vas4-bar', fill: 'vas4-fill', thumb: 'vas4-thumb', hidden: 'vas4-hidden', drag: true },
+    { bar: 'vas5-bar', fill: 'vas5-fill', thumb: 'vas5-thumb', hidden: 'vas5-hidden', drag: true },
+    { bar: 'vas6-bar', fill: 'vas6-fill', thumb: 'vas6-thumb', hidden: 'vas6-hidden', drag: true },
+  ];
+  configs.forEach(function(cfg) {
+    var bar    = document.getElementById(cfg.bar);
+    if (!bar) return;
+    var fill   = document.getElementById(cfg.fill);
+    var thumb  = document.getElementById(cfg.thumb);
+    var hidden = document.getElementById(cfg.hidden);
+
+    function setVal(clientX) {
+      var rect = bar.getBoundingClientRect();
+      var pct  = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      fill.style.width    = (pct * 100).toFixed(1) + '%';
+      thumb.style.left    = (pct * 100).toFixed(1) + '%';
+      thumb.style.display = 'block';
+      hidden.value        = Math.round(pct * 100);
+    }
+
+    if (hidden.value !== '') {
+      var initPct = parseInt(hidden.value, 10) / 100;
+      fill.style.width    = (initPct * 100).toFixed(1) + '%';
+      thumb.style.left    = (initPct * 100).toFixed(1) + '%';
+      thumb.style.display = 'block';
+    }
+
+    var dragging = false;
+    bar.addEventListener('mousedown', function(e) { dragging = true; setVal(e.clientX); e.preventDefault(); });
+    document.addEventListener('mousemove', function(e) { if (dragging) setVal(e.clientX); });
+    document.addEventListener('mouseup',   function()  { dragging = false; });
+    bar.addEventListener('touchstart', function(e) { setVal(e.touches[0].clientX); }, { passive: true });
+    bar.addEventListener('touchmove',  function(e) { setVal(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
+  });
+})();
+
+/* ── risk chips: sync visual class on change ────────────────────────────── */
+document.querySelectorAll('.fi-risk-group input[type="radio"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    var group = this.closest('.fi-risk-group');
+    if (group) {
+      group.querySelectorAll('.risk-chip').forEach(function(c) { c.classList.remove('risk-selected'); });
+    }
+    this.closest('.risk-chip').classList.add('risk-selected');
+  });
+});
+
+/* ── segmented controls: sync active class on change ───────────────────── */
+document.querySelectorAll('.seg-ctrl').forEach(function(ctrl) {
+  ctrl.querySelectorAll('input[type="radio"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      ctrl.querySelectorAll('.seg-opt').forEach(function(o) { o.classList.remove('seg-active'); });
+      this.closest('.seg-opt').classList.add('seg-active');
+    });
+  });
+});
+
+/* ── relevance panel: progress + category counts + group states ──────────── */
+function toggleRelGroup(hdr) {
+  var group = hdr.closest('.rel-group');
+  if (!group) return;
+  var willExpand = group.classList.contains('rel-group--collapsed');
+  /* accordion: collapse all others when expanding one */
+  if (willExpand) {
+    document.querySelectorAll('.rel-group').forEach(function(g) {
+      if (g !== group) g.classList.add('rel-group--collapsed');
+    });
+  }
+  group.classList.toggle('rel-group--collapsed');
+}
+
+function updateRelProgress() {
+  var items = document.querySelectorAll('#rating-form .rel-item');
+  if (!items.length) return;
+  var total = items.length, rated = 0, catCounts = {};
+  items.forEach(function(item) {
+    var cat = item.dataset.cat;
+    var checked = item.querySelector('input[type="radio"]:checked');
+    if (!catCounts[cat]) catCounts[cat] = { r: 0, t: 0 };
+    catCounts[cat].t++;
+    if (checked) { rated++; catCounts[cat].r++; }
+  });
+  var fill  = document.getElementById('rel-prog-fill');
+  var label = document.getElementById('rel-prog-label');
+  if (fill)  fill.style.width = Math.round(rated / total * 100) + '%';
+  if (label) label.textContent = rated + ' / ' + total + ' bewertet';
+  Object.keys(catCounts).forEach(function(cat) {
+    var el = document.querySelector('[data-cat-count="' + cat + '"]');
+    if (!el) return;
+    var c = catCounts[cat];
+    el.textContent = c.r + '/' + c.t;
+    /* update group card completion state */
+    var group = el.closest('.rel-group');
+    if (group) {
+      group.classList.remove('rel-group--complete', 'rel-group--partial');
+      if (c.r === c.t) {
+        group.classList.add('rel-group--complete');
+      } else if (c.r > 0) {
+        group.classList.add('rel-group--partial');
+      }
+    }
+    /* update status badge text */
+    var statusEl = document.querySelector('[data-cat-status="' + cat + '"]');
+    if (statusEl) {
+      statusEl.textContent = c.r === c.t ? 'Fertig' : '';
+    }
+  });
+}
+
+function setAllInCat(cat, value) {
+  document.querySelectorAll('#rating-form .rel-item[data-cat="' + cat + '"]').forEach(function(item) {
+    var radio = item.querySelector('input[value="' + value + '"]');
+    if (!radio) return;
+    radio.checked = true;
+    item.querySelectorAll('.rel-btn').forEach(function(b) { b.classList.remove('rel-btn--active'); });
+    radio.closest('.rel-btn').classList.add('rel-btn--active');
+  });
+  updateRelProgress();
+  /* notify inline validation that form state changed */
+  var form = document.getElementById('rating-form');
+  if (form) form.dispatchEvent(new Event('change', {bubbles: true}));
+  /* auto-collapse completed group and expand next incomplete */
+  var thisGroup = document.querySelector('.rel-group[data-cat="' + cat + '"]');
+  if (thisGroup && thisGroup.classList.contains('rel-group--complete')) {
+    thisGroup.classList.add('rel-group--collapsed');
+    var next = thisGroup.nextElementSibling;
+    while (next) {
+      if (next.classList.contains('rel-group') && !next.classList.contains('rel-group--complete')) {
+        next.classList.remove('rel-group--collapsed');
+        next.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        break;
+      }
+      next = next.nextElementSibling;
+    }
+  }
+}
+
+document.querySelectorAll('#rating-form .rel-item-btns input[type="radio"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    var item = this.closest('.rel-item');
+    item.querySelectorAll('.rel-btn').forEach(function(b) { b.classList.remove('rel-btn--active'); });
+    this.closest('.rel-btn').classList.add('rel-btn--active');
+    updateRelProgress();
+    /* auto-collapse completed group, expand next */
+    var grp = this.closest('.rel-group');
+    if (grp && grp.classList.contains('rel-group--complete')) {
+      grp.classList.add('rel-group--collapsed');
+      var nx = grp.nextElementSibling;
+      while (nx) {
+        if (nx.classList.contains('rel-group') && !nx.classList.contains('rel-group--complete')) {
+          nx.classList.remove('rel-group--collapsed');
+          nx.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          break;
+        }
+        nx = nx.nextElementSibling;
+      }
+    }
+  });
+});
+
+updateRelProgress();
+
+/* auto-expand first incomplete group on load */
+(function() {
+  var groups = document.querySelectorAll('.rel-group');
+  var expanded = false;
+  groups.forEach(function(g) {
+    if (!expanded && !g.classList.contains('rel-group--complete')) {
+      g.classList.remove('rel-group--collapsed');
+      expanded = true;
+    }
+  });
+})();
+
+/* ── Radial information tree (summary_integrity) ────────────────────────── */
+(function () {
+  var svg = document.getElementById('rt-svg');
+  if (!svg) return;
+
+  /* Build data from Jinja template (exposed on window for other IIFEs). */
+  window.RT_DATA = window.RT_DATA || [];
+  var RT_DATA = window.RT_DATA;
+  RT_DATA.length = 0;
+  {% set ns = namespace(prev_cat='') %}
+  {% for item in info_items %}
+    {% set parts = item.split(': ', 1) %}
+    {% set cat   = parts[0] if parts|length > 1 else '' %}
+    {% set label = parts[1] if parts|length > 1 else item %}
+    {% set slug  = slugify(item) %}
+    {% set cslug = slugify(cat) %}
+    {% set val   = existing.get('enthalten_' + slug, '') %}
+    {% if cat != ns.prev_cat %}{% set ns.prev_cat = cat %}
+  RT_DATA.push({slug:{{ cslug|tojson }},label:{{ cat|tojson }},items:[]});
+    {% endif %}
+  RT_DATA[RT_DATA.length-1].items.push({slug:{{ slug|tojson }},label:{{ label|tojson }},val:{{ val|tojson }}});
+  {% endfor %}
+
+  /* State: slug → '' | 'yes' | 'no' */
+  var state = {};
+  RT_DATA.forEach(function(c) { c.items.forEach(function(i) { state[i.slug] = i.val; }); });
+
+  var itemBySlug = {};
+  svg.querySelectorAll('.rt-item[data-slug]').forEach(function(g) {
+    itemBySlug[g.getAttribute('data-slug')] = g;
+  });
+
+  var catBySlug = {};
+  svg.querySelectorAll('.rt-cat[data-cat]').forEach(function(g) {
+    catBySlug[g.getAttribute('data-cat')] = g;
+  });
+
+  var inputBySlug = {};
+  document.querySelectorAll('input[id^="rt-inp-"]').forEach(function(inp) {
+    inputBySlug[inp.id.slice(7)] = inp;
+  });
+
+  function getS(slug) { return state[slug] || ''; }
+
+  function setS(slug, val) {
+    state[slug] = val;
+    var inp = inputBySlug[slug];
+    if (inp) inp.value = val;
+    var g = itemBySlug[slug];
+    if (g) {
+      g.setAttribute('data-val', val);
+      renderItemVisual(g, val);
+    }
+    /* Toggle green permanent highlight on text excerpts (pre-rendered + manual) */
+    var spans = document.querySelectorAll('.hl-info[data-hl-slug="' + slug + '"], .hl-manual[data-hl-slug="' + slug + '"]');
+    spans.forEach(function(el) {
+      el.classList.toggle('hl-info--yes', val === 'yes');
+      el.classList.toggle('hl-manual--yes', val === 'yes');
+    });
+    /* Footnote badges follow the underlying state: green when accepted, yellow otherwise. */
+    document.querySelectorAll('.hl-footnote[data-hl-slug="' + slug + '"]').forEach(function(fn) {
+      fn.classList.toggle('hl-footnote--yes', val === 'yes');
+    });
+    /* Also handle multi-slug spans where this slug is secondary.
+       Keep green if ANY slug in the group is still 'yes'. */
+    document.querySelectorAll('.hl-info[data-hl-slugs]').forEach(function(el) {
+      var slugs = el.getAttribute('data-hl-slugs').split(',');
+      if (slugs.indexOf(slug) >= 0) {
+        var anyYes = slugs.some(function(s) {
+          var inp = document.getElementById('rt-inp-' + s);
+          return inp && inp.value === 'yes';
+        });
+        el.classList.toggle('hl-info--yes', anyYes);
+      }
+    });
+    refreshCat(catOfSlug(slug));
+    refreshProgress();
+    refreshLines();
+  }
+
+  function catOfSlug(slug) {
+    for (var i = 0; i < RT_DATA.length; i++)
+      for (var j = 0; j < RT_DATA[i].items.length; j++)
+        if (RT_DATA[i].items[j].slug === slug) return RT_DATA[i].slug;
+    return null;
+  }
+
+  window.rtToggleItem = function(slug) {
+    var cur = getS(slug);
+    setS(slug, cur === 'yes' ? 'no' : 'yes');
+  };
+
+  window.rtToggleCat = function(catSlug) {
+    var cat = null;
+    for (var i = 0; i < RT_DATA.length; i++) if (RT_DATA[i].slug === catSlug) { cat = RT_DATA[i]; break; }
+    if (!cat) return;
+    var allYes = cat.items.every(function(i) { return getS(i.slug) === 'yes'; });
+    /* cycle: yes → no, otherwise → yes */
+    var next = allYes ? 'no' : 'yes';
+    cat.items.forEach(function(i) { setS(i.slug, next); });
+  };
+
+  function refreshCat(catSlug) {
+    if (!catSlug) return;
+    var cat = null;
+    for (var i = 0; i < RT_DATA.length; i++) if (RT_DATA[i].slug === catSlug) { cat = RT_DATA[i]; break; }
+    if (!cat) return;
+    var vals  = cat.items.map(function(i) { return getS(i.slug); });
+    var rated = vals.filter(function(v) { return v !== ''; }).length;
+    var allY  = vals.every(function(v) { return v === 'yes'; });
+    var allN  = vals.every(function(v) { return v === 'no'; });
+    var g = catBySlug[catSlug];
+    if (g) {
+      g.setAttribute('data-complete', (allY && rated === vals.length) ? 'true' : 'false');
+      g.setAttribute('data-allno',    (allN && rated === vals.length) ? 'true' : 'false');
+      g.setAttribute('data-partial',  (rated > 0 && !allY && !allN) ? 'true' : 'false');
+    }
+  }
+
+  function refreshProgress() {
+    var total = 0, rated = 0;
+    RT_DATA.forEach(function(c) { c.items.forEach(function(i) { total++; if (getS(i.slug) !== '') rated++; }); });
+    var lbl  = document.getElementById('tree-prog-label');
+    var fill = document.getElementById('tree-prog-fill');
+    if (lbl)  lbl.textContent = rated + ' / ' + total + ' bewertet';
+    if (fill) fill.style.width = (total ? Math.round(rated / total * 100) : 0) + '%';
+  }
+
+  function refreshLines() {
+    svg.querySelectorAll('.rt-twig[data-slug]').forEach(function(l) {
+      var v = getS(l.getAttribute('data-slug'));
+      l.setAttribute('class', 'rt-twig' + (v === 'yes' ? ' rt-twig--yes' : v === 'no' ? ' rt-twig--no' : ''));
+    });
+    svg.querySelectorAll('.rt-branch[data-cat]').forEach(function(l) {
+      var cat = null;
+      for (var i = 0; i < RT_DATA.length; i++) if (RT_DATA[i].slug === l.getAttribute('data-cat')) { cat = RT_DATA[i]; break; }
+      if (!cat) return;
+      var vals = cat.items.map(function(i) { return getS(i.slug); });
+      var allY = vals.every(function(v) { return v === 'yes'; });
+      var allN = vals.every(function(v) { return v === 'no'; });
+      var anyY = vals.some(function(v)  { return v === 'yes'; });
+      l.setAttribute('class', 'rt-branch' + (allY ? ' rt-branch--done' : allN ? ' rt-branch--no' : anyY ? ' rt-branch--part' : ''));
+    });
+
+    svg.querySelectorAll('.rt-endpoint-g[data-slug]').forEach(function(g) {
+      var v = getS(g.getAttribute('data-slug'));
+      var c = g.querySelector('.rt-endpoint');
+      var ck = g.querySelector('.rt-endpoint-check');
+      var cr = g.querySelector('.rt-endpoint-cross');
+      var tx = g.querySelector('.rt-endpoint-label');
+      if (!c) return;
+
+      if (v === 'yes') {
+        c.style.fill = '#dbeafe';
+        c.style.stroke = '#1a4f8a';
+        c.style.strokeWidth = '2.5';
+        if (tx) { tx.style.fill = '#1a4f8a'; tx.style.fontWeight = 'bold'; }
+        if (ck) ck.style.display = 'block';
+        if (cr) cr.style.display = 'none';
+      } else if (v === 'no') {
+        c.style.fill = '#f3f4f6';
+        c.style.stroke = '#d1d5db';
+        c.style.strokeWidth = '1.8';
+        if (tx) { tx.style.fill = '#6b7280'; tx.style.fontWeight = ''; }
+        if (ck) ck.style.display = 'none';
+        if (cr) cr.style.display = 'block';
+      } else {
+        c.style.fill = '#f8fafc';
+        c.style.stroke = '#94a3b8';
+        c.style.strokeWidth = '1.8';
+        if (tx) { tx.style.fill = '#334155'; tx.style.fontWeight = ''; }
+        if (ck) ck.style.display = 'none';
+        if (cr) cr.style.display = 'none';
+      }
+    });
+  }
+
+  function mk(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+  function ensureItemNode(item) {
+    var g = itemBySlug[item.slug];
+    if (g) return g;
+
+    g = mk('g');
+    g.setAttribute('class', 'rt-item');
+    g.setAttribute('id', 'rt-item-' + item.slug);
+    g.setAttribute('data-slug', item.slug);
+    g.setAttribute('data-cat', catOfSlug(item.slug) || '');
+    g.setAttribute('data-val', getS(item.slug));
+    g.addEventListener('click', function() { window.rtToggleItem(item.slug); });
+
+    var c = mk('circle');
+    c.setAttribute('r', '11');
+    c.setAttribute('class', 'rt-item-circle');
+    g.appendChild(c);
+
+    var chk = mk('path');
+    chk.setAttribute('class', 'rt-item-check');
+    chk.setAttribute('d', 'M-5 0.5 L-1.5 4.5 L5.5 -4');
+    g.appendChild(chk);
+
+    var crs = mk('path');
+    crs.setAttribute('class', 'rt-item-cross');
+    crs.setAttribute('d', 'M-4 -4 L4 4 M-4 4 L4 -4');
+    g.appendChild(crs);
+
+    var lbl = mk('text');
+    lbl.setAttribute('class', 'rt-item-label');
+    g.appendChild(lbl);
+
+    var ttl = mk('title');
+    ttl.textContent = item.label;
+    g.appendChild(ttl);
+
+    svg.appendChild(g);
+    itemBySlug[item.slug] = g;
+    return g;
+  }
+
+  function renderItemVisual(g, val) {
+    if (!g) return;
+
+    var circle = g.querySelector('.rt-item-circle');
+    if (!circle) {
+      circle = mk('circle');
+      circle.setAttribute('r', '11');
+      circle.setAttribute('class', 'rt-item-circle');
+      g.insertBefore(circle, g.firstChild);
+    }
+
+    var check = g.querySelector('.rt-item-check');
+    var cross = g.querySelector('.rt-item-cross');
+
+    circle.style.display = 'block';
+    if (val === 'yes') {
+      circle.style.fill = '#dbeafe';
+      circle.style.stroke = '#1a4f8a';
+      circle.style.strokeWidth = '2.5';
+    } else if (val === 'no') {
+      circle.style.fill = '#f3f4f6';
+      circle.style.stroke = '#d1d5db';
+      circle.style.strokeWidth = '1.8';
+    } else {
+      circle.style.fill = '#f8fafc';
+      circle.style.stroke = '#94a3b8';
+      circle.style.strokeWidth = '1.8';
+    }
+
+    if (check) check.style.display = (val === 'yes') ? 'block' : 'none';
+    if (cross) cross.style.display = (val === 'no') ? 'block' : 'none';
+  }
+
+  function layout() {
+    /* ── Horizontal tree: Patient left → categories middle → items right ── */
+    var totalN   = RT_DATA.reduce(function(s, c) { return s + c.items.length; }, 0);
+    var nCats    = RT_DATA.length;
+
+    /* Use the actual rendered container size to set the viewBox so
+       the tree fills the entire right column with no dead space.     */
+    var parentRect = svg.parentElement.getBoundingClientRect();
+    var headerEl = svg.parentElement.querySelector('.tree-header');
+    var headerH = headerEl ? headerEl.getBoundingClientRect().height : 0;
+    var W = Math.round(parentRect.width)  || 900;
+    var H = Math.round(parentRect.height - headerH) || 700;
+    if (W < 100) W = 900;
+    if (H < 100) H = 700;
+
+    var padTop = 10;
+    var padBot = 10;
+    var rowH = (H - padTop - padBot) / Math.max(totalN, 1);
+
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+    svg.style.width  = '100%';
+    svg.style.height = '100%';
+    svg.setAttribute('preserveAspectRatio', 'none');
+
+    var patX        = Math.round(W * 0.04);    /* patient on the left       */
+    var patY        = H / 2;
+    var catX        = Math.round(W * 0.16);    /* category column x         */
+    var itemCircleX = Math.round(W * 0.34);    /* item circle x             */
+
+    /* ── Place nodes first, then measure and re-center ── */
+
+    /* center patient */
+    var pat = document.getElementById('rt-patient');
+    if (pat) pat.setAttribute('transform', 'translate(' + patX + ',' + patY + ')');
+
+    /* rebuild lines layer */
+    var linesG = document.getElementById('rt-lines');
+    linesG.innerHTML = '';
+
+    var runningY = padTop;
+
+    RT_DATA.forEach(function(cat, ci) {
+      var n = cat.items.length;
+      /* category Y = vertical center of its item block */
+      var blockTop = runningY;
+      var catY     = runningY + (n * rowH) / 2;
+
+      /* position category node */
+      var catG = catBySlug[cat.slug];
+      if (catG) {
+        catG.setAttribute('transform', 'translate(' + catX + ',' + catY + ')');
+        var nameEl = catG.querySelector('.rt-cat-name');
+        if (nameEl) {
+          nameEl.setAttribute('dominant-baseline', 'middle');
+          nameEl.setAttribute('transform', '');
+          nameEl.setAttribute('x', '-25');
+          nameEl.setAttribute('text-anchor', 'end');
+          /* Split long labels into two lines */
+          if (cat.label.length > 20) {
+            var words = cat.label.split(' ');
+            var mid = Math.ceil(words.length / 2);
+            var line1 = words.slice(0, mid).join(' ');
+            var line2 = words.slice(mid).join(' ');
+            nameEl.textContent = '';
+            var ts1 = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+            ts1.textContent = line1;
+            ts1.setAttribute('x', '-25');
+            ts1.setAttribute('dy', '-0.6em');
+            var ts2 = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+            ts2.textContent = line2;
+            ts2.setAttribute('x', '-25');
+            ts2.setAttribute('dy', '1.2em');
+            nameEl.appendChild(ts1);
+            nameEl.appendChild(ts2);
+          } else {
+            nameEl.textContent = cat.label;
+          }
+        }
+      }
+
+      /* branch: patient → category */
+      var br = mk('line');
+      br.setAttribute('x1', patX); br.setAttribute('y1', patY);
+      br.setAttribute('x2', catX); br.setAttribute('y2', catY);
+      br.setAttribute('class', 'rt-branch'); br.setAttribute('data-cat', cat.slug);
+      linesG.appendChild(br);
+
+      cat.items.forEach(function(item, i) {
+        var itemY = runningY + (i + 0.5) * rowH;
+
+        /* twig: category → item */
+        var tw = mk('line');
+        tw.setAttribute('x1', catX); tw.setAttribute('y1', catY);
+        tw.setAttribute('x2', itemCircleX); tw.setAttribute('y2', itemY);
+        tw.setAttribute('class', 'rt-twig'); tw.setAttribute('data-slug', item.slug);
+        linesG.appendChild(tw);
+
+        /* endpoint node: circle + check/cross + label */
+        var epg = mk('g');
+        epg.setAttribute('class', 'rt-endpoint-g');
+        epg.setAttribute('data-slug', item.slug);
+        epg.setAttribute('transform', 'translate(' + itemCircleX + ',' + itemY + ')');
+        epg.style.cursor = 'pointer';
+        epg.addEventListener('click', (function(slug) {
+          return function() { window.rtToggleItem(slug); };
+        })(item.slug));
+        epg.addEventListener('mouseenter', (function(slug) {
+          return function() { highlightExcerpts(slug, true); };
+        })(item.slug));
+        epg.addEventListener('mouseleave', (function(slug) {
+          return function() { highlightExcerpts(slug, false); };
+        })(item.slug));
+        /* init green highlight for already-selected items */
+        if (getS(item.slug) === 'yes') {
+          document.querySelectorAll('.hl-info[data-hl-slug="' + item.slug + '"]').forEach(function(el) {
+            el.classList.add('hl-info--yes');
+          });
+        }
+
+        var ep = mk('circle');
+        ep.setAttribute('r', '9');
+        ep.setAttribute('class', 'rt-endpoint');
+        epg.appendChild(ep);
+
+        var ck = mk('path');
+        ck.setAttribute('class', 'rt-endpoint-check');
+        ck.setAttribute('d', 'M-4 0.5 L-1.5 3.5 L4.5 -3');
+        epg.appendChild(ck);
+
+        var cr = mk('path');
+        cr.setAttribute('class', 'rt-endpoint-cross');
+        cr.setAttribute('d', 'M-3.5 -3.5 L3.5 3.5 M-3.5 3.5 L3.5 -3.5');
+        epg.appendChild(cr);
+
+        var tx = mk('text');
+        tx.setAttribute('class', 'rt-endpoint-label');
+        tx.textContent = item.label;
+        tx.setAttribute('dominant-baseline', 'middle');
+        tx.setAttribute('x', '14');
+        tx.setAttribute('text-anchor', 'start');
+        epg.appendChild(tx);
+
+        linesG.appendChild(epg);
+      });
+
+      runningY += n * rowH;
+    });
+
+    /* ── Measure actual content bounds and re-center horizontally ── */
+    try {
+      var bbox = svg.getBBox();
+      var contentLeft = bbox.x;
+      var contentRight = bbox.x + bbox.width;
+      var padEdge = 10;
+      var contentW = contentRight - contentLeft;
+      var dx = ((W - contentW) / 2) - contentLeft;
+      /* clamp so nothing goes off-screen */
+      if (contentLeft + dx < padEdge) dx = padEdge - contentLeft;
+      if (contentRight + dx > W - padEdge) dx = (W - padEdge) - contentRight;
+
+      /* shift every positioned element */
+      patX += dx; catX += dx; itemCircleX += dx;
+      if (pat) pat.setAttribute('transform', 'translate(' + patX + ',' + patY + ')');
+      RT_DATA.forEach(function(cat) {
+        var catG = catBySlug[cat.slug];
+        if (catG) {
+          var oldT = catG.getAttribute('transform');
+          var m = oldT.match(/translate\(\s*([\d.e+-]+)\s*,\s*([\d.e+-]+)\s*\)/);
+          if (m) catG.setAttribute('transform', 'translate(' + (parseFloat(m[1]) + dx) + ',' + m[2] + ')');
+        }
+      });
+      var epgs = linesG.querySelectorAll('.rt-endpoint-g');
+      for (var i = 0; i < epgs.length; i++) {
+        var oldT = epgs[i].getAttribute('transform');
+        var m = oldT.match(/translate\(\s*([\d.e+-]+)\s*,\s*([\d.e+-]+)\s*\)/);
+        if (m) epgs[i].setAttribute('transform', 'translate(' + (parseFloat(m[1]) + dx) + ',' + m[2] + ')');
+      }
+      var lines = linesG.querySelectorAll('line');
+      for (var i = 0; i < lines.length; i++) {
+        lines[i].setAttribute('x1', parseFloat(lines[i].getAttribute('x1')) + dx);
+        lines[i].setAttribute('x2', parseFloat(lines[i].getAttribute('x2')) + dx);
+      }
+    } catch(e) { /* getBBox may fail if not rendered yet */ }
+
+    refreshLines();
+  }
+
+  /* initialise visual state from pre-existing data */
+  RT_DATA.forEach(function(cat) {
+    cat.items.forEach(function(item) { state[item.slug] = item.val; });
+    refreshCat(cat.slug);
+  });
+  /* Sync footnote badge color with the persisted state of each slug. */
+  document.querySelectorAll('.hl-footnote[data-hl-slug]').forEach(function(fn) {
+    var s = fn.getAttribute('data-hl-slug');
+    fn.classList.toggle('hl-footnote--yes', state[s] === 'yes');
+  });
+  refreshProgress();
+
+  layout();
+  requestAnimationFrame(layout);
+  window.addEventListener('resize', layout);
+
+  /* toggleTreeText removed — text panel is always visible */
+})();
+
+/* ── Origin widget: toggle active class on click ─────────────────────────── */
+document.querySelectorAll('.origin-opt input[type="radio"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    var widget = this.closest('.origin-widget');
+    widget.querySelectorAll('.origin-opt').forEach(function(opt) { opt.classList.remove('origin-opt--active'); });
+    this.closest('.origin-opt').classList.add('origin-opt--active');
+  });
+});
+
+/* ── Preference: click column to select / deselect ──────────────────────── */
+document.querySelectorAll('.pref-clickable').forEach(function(col) {
+  col.addEventListener('click', function() {
+    var val = this.dataset.pref;
+    var input = document.getElementById('pref-choice');
+    var statusText = document.getElementById('pref-status-text');
+    var noBtn = document.getElementById('pref-no-pref-btn');
+    if (input.value === val) {
+      // deselect → Keine Präferenz
+      input.value = 'Keine Präferenz';
+      document.querySelectorAll('.pref-clickable').forEach(function(c) { c.classList.remove('pref-selected'); });
+      if (noBtn) noBtn.classList.add('pref-no-pref-btn--active');
+    } else {
+      input.value = val;
+      document.querySelectorAll('.pref-clickable').forEach(function(c) { c.classList.remove('pref-selected'); });
+      this.classList.add('pref-selected');
+      if (noBtn) noBtn.classList.remove('pref-no-pref-btn--active');
+    }
+    if (statusText) statusText.textContent = input.value;
+  });
+});
+
+var noPrefBtn = document.getElementById('pref-no-pref-btn');
+if (noPrefBtn) {
+  noPrefBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var input = document.getElementById('pref-choice');
+    var statusText = document.getElementById('pref-status-text');
+    document.querySelectorAll('.pref-clickable').forEach(function(c) { c.classList.remove('pref-selected'); });
+    input.value = 'Keine Präferenz';
+    noPrefBtn.classList.add('pref-no-pref-btn--active');
+    if (statusText) statusText.textContent = 'Keine Präferenz';
+  });
+}
+
+</script>
+
+{% if step.key == 'final_overall' %}
+<script>
+(function () {
+  var form  = document.querySelector('form');
+  var toast = document.getElementById('case-done-toast');
+  if (!form || !toast) return;
+  form.addEventListener('submit', function (e) {
+    /* Let the browser validate first */
+    if (!form.checkValidity()) return;
+    e.preventDefault();
+    toast.style.display = 'flex';
+    var data = new FormData(form);
+    fetch(form.action || window.location.href, {
+      method: 'POST',
+      body: data,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    }).then(function (resp) {
+      var dest = resp.redirected ? resp.url : resp.url;
+      setTimeout(function () { window.location.href = dest; }, 2000);
+    }).catch(function () {
+      /* Fallback: normal submit after delay */
+      setTimeout(function () { form.submit(); }, 2000);
+    });
+  });
+})();
+</script>
+{% endif %}
+
+{# ── Inline validation: enable/disable submit button based on form state ── #}
+<script>
+(function() {
+  var form = document.getElementById('rating-form');
+  var submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+  if (!form || !submitBtn) return;
+
+  /* Don't override the final_overall disabled-because-prior-steps-missing gate */
+  {% if step.key == 'final_overall' and not all_prior_done %}
+  return;
+  {% endif %}
+
+  function isFormComplete() {
+    var stepKey = {{ step.key | tojson }};
+
+    /* VAS-based steps: hidden 'vas_score' must have a value */
+    if (['summary_correctness','summary_completeness','summary_conciseness'].indexOf(stepKey) >= 0) {
+      var vasInp = form.querySelector('input[name="vas_score"]');
+      return !!(vasInp && vasInp.value !== '');
+    }
+
+    /* Steps that use radio 'choice' (correctness, specificity, origin_guess) */
+    if (['problem_correctness','problem_specificity',
+         'summary_origin_guess','problem_origin_guess'].indexOf(stepKey) >= 0) {
+      return !!form.querySelector('input[name="choice"]:checked');
+    }
+
+    /* Postedit steps */
+    if (stepKey === 'summary_postedit' || stepKey === 'problem_postedit') {
+      var decision = form.querySelector('input[name="pe_decision"]:checked');
+      if (!decision) return false;
+      if (decision.value === 'needs_edit') {
+        return !!form.querySelector('input[name="pe_effort"]:checked');
+      }
+      return true;
+    }
+
+    /* Preference steps: hidden input 'choice' always has a value */
+    if (stepKey === 'summary_preference' || stepKey === 'problem_preference') {
+      var prefInput = form.querySelector('input[name="choice"]');
+      return prefInput && prefInput.value !== '';
+    }
+
+    /* problem_focus: at least one Diskussionsschwerpunkt; if Weitere Diagnostik/Therapie selected, at least one sub-type */
+    if (stepKey === 'problem_focus') {
+      var topics = Array.prototype.map.call(form.querySelectorAll('input[name="topics"]:checked'), function(c){ return c.value; });
+      if (topics.length === 0) return false;
+      if (topics.indexOf('Weitere Diagnostik') !== -1 &&
+          form.querySelectorAll('input[name="diagnostik_types"]:checked').length === 0) return false;
+      if (topics.indexOf('Therapie (Beginn, Auswahl, Modifikation)') !== -1 &&
+          form.querySelectorAll('input[name="therapie_types"]:checked').length === 0) return false;
+      return true;
+    }
+
+    /* final_overall: VAS must have value */
+    if (stepKey === 'final_overall') {
+      var vas = form.querySelector('input[name="vas_score"]');
+      return vas && vas.value !== '';
+    }
+
+    /* falseinfo / missinginfo: always allow submit (items are optional) */
+    return true;
+  }
+
+  function syncSubmitState() {
+    var complete = isFormComplete();
+    submitBtn.disabled = !complete;
+    submitBtn.classList.toggle('btn--disabled', !complete);
+  }
+
+  /* Initial state */
+  syncSubmitState();
+
+  /* Listen for changes */
+  form.addEventListener('change', syncSubmitState);
+  form.addEventListener('input', syncSubmitState);
+
+  /* For tree step: observe hidden input value changes via MutationObserver */
+  if ({{ (false) | tojson }}) {
+    var observer = new MutationObserver(syncSubmitState);
+    form.querySelectorAll('input[name^="enthalten_"]').forEach(function(inp) {
+      observer.observe(inp, { attributes: true, attributeFilter: ['value'] });
+    });
+    /* Also poll periodically since hidden value changes don't trigger 'change' */
+    setInterval(syncSubmitState, 500);
+  }
+
+  /* For VAS: poll since custom slider doesn't trigger change events */
+  if ({{ (step.key in ['final_overall','summary_correctness','summary_completeness','summary_conciseness']) | tojson }}) {
+    setInterval(syncSubmitState, 500);
+  }
+})();
+</script>
+
+{# ── Unsaved changes warning ─────────────────────────────────────────────── #}
+<script>
+(function() {
+  var form = document.getElementById('rating-form');
+  if (!form) return;
+  var dirty = false;
+  var submitting = false;
+
+  form.addEventListener('change', function() { dirty = true; });
+  form.addEventListener('input', function() { dirty = true; });
+  form.addEventListener('submit', function() { submitting = true; });
+
+  /* Also allow navigation via back-button links */
+  document.querySelectorAll('a.btn').forEach(function(a) {
+    a.addEventListener('click', function() { submitting = true; });
+  });
+
+  window.addEventListener('beforeunload', function(e) {
+    if (dirty && !submitting) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+})();
+
+/* Apply persistent red highlights for already-checked falseinfo items on page load */
+(function() {
+  document.querySelectorAll('.fi-card--active[data-hl-slug]').forEach(function(card) {
+    var slug = card.getAttribute('data-hl-slug');
+    document.querySelectorAll('.hl-info[data-hl-slug="' + slug + '"]').forEach(function(el) {
+      el.classList.add('hl-info--error');
+    });
+  });
+})();
+</script>
+
+{% if is_admin and step.section_type in ['summary','problem'] %}
+<script id="admin-edit-data" type="application/json">
+{{ {
+  'case_id': case_id,
+  'section': step.section_type,
+  'text_origin':   text_origin,
+  'text_a_origin': text_a_origin,
+  'text_b_origin': text_b_origin,
+  'text_raw':   text_content_raw,
+  'text_a_raw': text_a_raw,
+  'text_b_raw': text_b_raw,
+} | tojson }}
+</script>
+<script>
+(function() {
+  var node = document.getElementById('admin-edit-data');
+  if (!node) return;
+  var ctx = JSON.parse(node.textContent);
+
+  function wire(host, raw, origin) {
+    if (!host || !origin || raw == null) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'admin-edit-btn';
+    btn.textContent = 'Text bearbeiten (Admin)';
+    host.parentNode.insertBefore(btn, host);
+
+    btn.addEventListener('click', function() {
+      if (btn.dataset.editing === '1') return;
+      btn.dataset.editing = '1';
+      btn.style.display = 'none';
+
+      var origHTML = host.innerHTML;
+      var ta = document.createElement('textarea');
+      ta.className = 'admin-edit-ta';
+      ta.value = raw;
+      ta.rows = Math.min(30, Math.max(8, raw.split('\n').length + 2));
+
+      var actions = document.createElement('div');
+      actions.className = 'admin-edit-actions';
+      var saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'btn btn-primary admin-save';
+      saveBtn.textContent = 'Speichern';
+      var cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'btn admin-cancel';
+      cancelBtn.textContent = 'Abbrechen';
+      actions.appendChild(saveBtn);
+      actions.appendChild(document.createTextNode(' '));
+      actions.appendChild(cancelBtn);
+
+      host.innerHTML = '';
+      host.appendChild(ta);
+      host.appendChild(actions);
+
+      cancelBtn.addEventListener('click', function() {
+        host.innerHTML = origHTML;
+        btn.style.display = '';
+        btn.dataset.editing = '';
+      });
+
+      saveBtn.addEventListener('click', function() {
+        saveBtn.disabled = true;
+        cancelBtn.disabled = true;
+        fetch('/admin/text/' + encodeURIComponent(ctx.case_id), {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({section: ctx.section, origin: origin, text: ta.value})
+        }).then(function(r) {
+          if (r.ok) { location.reload(); }
+          else { return r.text().then(function(t) { alert('Fehler: ' + t); saveBtn.disabled = false; cancelBtn.disabled = false; }); }
+        }).catch(function(e) {
+          alert('Netzwerkfehler: ' + e);
+          saveBtn.disabled = false;
+          cancelBtn.disabled = false;
+        });
+      });
+    });
+  }
+
+  if (ctx.text_origin) {
+    /* Tab view: a single .text-content rendered in the eval body */
+    var nodes = document.querySelectorAll('.text-content');
+    var single = null;
+    nodes.forEach(function(n) {
+      if (n.classList.contains('preference-text')) return;
+      if (!single) single = n;
+    });
+    wire(single, ctx.text_raw, ctx.text_origin);
+  } else if (ctx.text_a_origin) {
+    /* Preference view: two preference-text columns (A and B) */
+    var prefs = document.querySelectorAll('.text-content.preference-text');
+    if (prefs.length >= 2) {
+      wire(prefs[0], ctx.text_a_raw, ctx.text_a_origin);
+      wire(prefs[1], ctx.text_b_raw, ctx.text_b_origin);
+    }
+  }
+})();
+</script>
+{% endif %}
+
+{% endblock %}

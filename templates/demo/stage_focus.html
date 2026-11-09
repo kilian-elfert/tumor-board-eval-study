@@ -1,0 +1,62 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 read · 1 descriptive · 2 click Diagnostik · 3 sub-options · 4 add Therapie · 5 "Keine Spezifizierung" #}
+<div class="dt-evalcard dt-evalcard--tall">
+  {{ m.frame_header(step, step_no, total) }}
+  <div class="eval-body">
+    {{ m.text_pane('problem') }}
+    <div class="rating-section">
+      <h3 class="rating-title">{{ step.subtitle }}</h3>
+      <div class="sub-section">
+        <div class="sub-section-label">Vorgeschlagene Diskussionsschwerpunkte:<span class="sub-section-hint">Mehrfachauswahl möglich</span></div>
+        <div class="fc-widget" data-cls="1:dt-pulse">
+          <div class="fc-start-row"><div class="fc-start-node">Fragestellung fokussiert auf …</div></div>
+          <div class="fc-trunk-wrap">
+            <div class="fc-trunk"></div>
+            <div class="fc-rail-wrap"><div class="fc-rail-base" style="left:14%;width:72%"></div></div>
+          </div>
+          <div class="fc-nodes-row">
+            <div class="fc-branch-wrap"><div class="fc-branch-line"></div>
+              <div class="fc-node" data-cls="2-:fc-node--on" data-cursor="2"><span class="fc-node-icon">🔬</span><span class="fc-node-text">Weitere<br>Diagnostik</span></div>
+            </div>
+            <div class="fc-branch-wrap"><div class="fc-branch-line"></div>
+              <div class="fc-node" data-cls="4-:fc-node--on" data-cursor="4"><span class="fc-node-icon">💊</span><span class="fc-node-text">Therapie<br><small>(Beginn, Auswahl,<br>Modifikation)</small></span></div>
+            </div>
+            <div class="fc-branch-wrap"><div class="fc-branch-line"></div>
+              <div class="fc-node"><span class="fc-node-icon">📈</span><span class="fc-node-text">Nachsorge</span></div>
+            </div>
+            <div class="fc-branch-wrap"><div class="fc-branch-line"></div>
+              <div class="fc-node"><span class="fc-node-icon">⚙️</span><span class="fc-node-text">Organisato-<br>rische Fragen</span></div>
+            </div>
+            <div class="fc-branch-wrap"><div class="fc-branch-line"></div>
+              <div class="fc-node fc-node--none" data-cls="5:dt-pulse" data-cursor-hover="5"><span class="fc-node-icon">—</span><span class="fc-node-text">Keine<br>Spezifizierung</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dt-fc-subs">
+          <div class="fc-sub-panel" data-in="2-">
+            <div class="sub-section-label">Art der Diagnostik:<span class="sub-section-hint">Mehrfachauswahl möglich</span></div>
+            <div class="fc-sub-checks">
+              <label class="fc-sub-check"><input type="checkbox" tabindex="-1"><span>Histopathologische Diagnostik</span></label>
+              <label class="fc-sub-check" data-cursor="3"><input type="checkbox" tabindex="-1" data-check="3-"><span>Molekulare / Genetische Diagnostik</span></label>
+              <label class="fc-sub-check"><input type="checkbox" tabindex="-1" data-check="3-"><span>Radiologische Bildgebung (inkl. Sonographie, PET-CT)</span></label>
+              <label class="fc-sub-check"><input type="checkbox" tabindex="-1"><span>Laborchemische Diagnostik</span></label>
+            </div>
+          </div>
+          <div class="fc-sub-panel" data-in="4-">
+            <div class="sub-section-label">Vorgeschlagene Therapie:<span class="sub-section-hint">Mehrfachauswahl möglich</span></div>
+            <div class="fc-sub-checks">
+              <label class="fc-sub-check"><input type="checkbox" tabindex="-1" data-check="4-"><span>Chirurgische Intervention</span></label>
+              <label class="fc-sub-check"><input type="checkbox" tabindex="-1"><span>Strahlentherapie</span></label>
+              <label class="fc-sub-check"><input type="checkbox" tabindex="-1"><span>Andere lokoregionäre Therapien</span></label>
+              <label class="fc-sub-check"><input type="checkbox" tabindex="-1"><span>Immuntherapie</span></label>
+              <label class="fc-sub-check"><input type="checkbox" tabindex="-1"><span>Zielgerichtete Therapie</span></label>
+              <label class="fc-sub-check"><input type="checkbox" tabindex="-1"><span>Chemotherapie</span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{ m.frame_footer(step) }}
+</div>

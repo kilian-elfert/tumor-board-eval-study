@@ -1,0 +1,234 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 intro modal · 1 open rail · 2 single ✓ · 3 "alle ✓" · 4 exception ✗ · 5 close rail · 6 reopen rail · 7 reference · 8 record (scrolled to the end) · 9 continue
+
+   Mirrors templates/case_dashboard.html (first visit, evaluator view) with the
+   real dashboard.css classes and the fictional demo case (page markup in
+   demo/_dash_page.html). The page is laid out at 1440 px and scaled into the
+   1000 px demo frame (see .dt-dash-page). #}
+
+{% macro row(label, no='', clear='0-', yes='', cursor_yes=None, cursor_no=None) -%}
+<div class="rail-row">
+  <span class="rail-row-label">{{ label }}</span>
+  <div class="rail-row-toggle">
+    <span class="rail-tg rail-tg--no" {% if no %}data-cls="{{ no }}:is-active"{% endif %} {% if cursor_no is not none %}data-cursor="{{ cursor_no }}"{% endif %}>&#10007;</span>
+    <span class="rail-tg rail-tg--clear" data-cls="{{ clear }}:is-active">—</span>
+    <span class="rail-tg rail-tg--yes" {% if yes %}data-cls="{{ yes }}:is-active"{% endif %} {% if cursor_yes is not none %}data-cursor="{{ cursor_yes }}"{% endif %}>&#10003;</span>
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro count(spec) -%}
+{%- for rng, txt in spec -%}<span data-in="{{ rng }}">{{ txt }}</span>{%- endfor -%}
+{%- endmacro %}
+
+{% macro cat_open(name, n, count_spec=None, complete='9-', pulse='', cursor_bulk=None, hint='') -%}
+<details class="rail-cat" open {% if pulse %}data-cls="{{ pulse }}:dt-pulse"{% endif %}>
+  <summary class="rail-cat-hdr">
+    <svg class="rail-cat-chev" viewBox="0 0 20 20" width="14" height="14" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+    <span class="rail-cat-name">{{ name }}</span>
+    <span class="rail-cat-count" data-cls="{{ complete }}:is-complete">{{ count(count_spec or [('0-8', '0/' ~ n), ('9-', n ~ '/' ~ n)]) }}</span>
+    <span class="rail-cat-bulk">
+      <span class="rail-cat-bulk-btn rail-cat-bulk-btn--no">alle&nbsp;&#10007;</span>
+      <span class="rail-cat-bulk-btn rail-cat-bulk-btn--yes" {% if cursor_bulk is not none %}data-cursor="{{ cursor_bulk }}"{% endif %}>alle&nbsp;&#10003;</span>
+    </span>
+  </summary>
+  <div class="rail-cat-body">
+    {% if hint %}<p class="rail-cat-hint">{{ hint | safe }}</p>{% endif %}
+    {{ caller() }}
+  </div>
+</details>
+{%- endmacro %}
+
+<div class="dt-dash">
+ <div class="dt-dash-page">
+  {% with ov={'scroll_end': '8-', 'grid_pulse': '8', 'continue_unlock': '9'} %}{% include 'demo/_dash_page.html' %}{% endwith %}
+
+  {# ── rating rail (markup of the rail in case_dashboard.html) ── #}
+  <span class="rail-toggle" data-cls="1-4,6-:dt-rail-open;1:glow-warn" data-cursor="6">
+    <span class="rail-toggle-icon">≡</span>
+    <span class="rail-toggle-label">Relevanz</span>
+    <span class="rail-toggle-badge" data-cls="9-:is-complete">{{ count([('0-1', '0/39'), ('2', '1/39'), ('3-8', '10/39'), ('9-', '39/39')]) }}</span>
+  </span>
+
+  <aside class="rating-rail" data-cls="1-4,6-:is-open;1:glow-warn">
+    <div class="rail-header">
+      <div class="rail-header-row">
+        <h2 class="rail-title">Relevanzbewertung</h2>
+        <span class="rail-close" data-cursor="5">&times;</span>
+      </div>
+      <p class="rail-sub">Maßgebliche Referenz: <strong>Patientenakte</strong>.</p>
+      <span class="rel-demo-card rel-demo-card--compact">
+        <span class="rel-demo-play" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        </span>
+        <span class="rel-demo-title">Demo ansehen</span>
+        <span class="rel-demo-arrow" aria-hidden="true">&rarr;</span>
+      </span>
+      <div class="rail-prog-row">
+        <span class="rail-prog-label">{{ count([('0-1', '0 / 39 bewertet'), ('2', '1 / 39 bewertet'), ('3-8', '10 / 39 bewertet'), ('9-', '39 / 39 bewertet')]) }}</span>
+        <span class="rail-save-status is-ok" data-in="2-">Gespeichert</span>
+      </div>
+      <div class="rail-prog-track"><div class="rail-prog-fill" data-width="0:0;2:3;3:26;9:100"></div></div>
+      <div class="rail-continue">
+        <span class="btn-continue rail-continue-btn is-locked" data-cls="9-:!is-locked;9:dt-glow" data-cursor="9">Weiter zur Textbewertung &rarr;</span>
+        <p class="rail-continue-hint" data-in="0-8">Noch <strong>{{ count([('0-1', '39'), ('2', '38'), ('3-8', '29')]) }}</strong> Informationen offen</p>
+      </div>
+    </div>
+    <div class="rail-body">
+      {% call cat_open('Allgemeinzustand', 2) %}
+        {{ row('Komorbiditäten', clear='0-8', no='9-') }}
+        {{ row('Funktioneller Zustand (e.g. ECOG, Karnofsky)', clear='0-8', yes='9-') }}
+      {% endcall %}
+      {% call cat_open('Primärtumor', 10, count_spec=[('0-1', '0/10'), ('2', '1/10'), ('3-', '10/10')], complete='3-', pulse='3', cursor_bulk=3) %}
+        {{ row('Datum der Erstdiagnose', clear='0-2', yes='3-') }}
+        {{ row('Art des Tumors', clear='0-2', yes='3-') }}
+        {{ row('Histogenetischer Subtyp', clear='0-2', yes='3-') }}
+        {{ row('Lokalisation', clear='0-2', yes='3-') }}
+        {{ row('Tumordicke', clear='0-1', yes='2-', cursor_yes=2) }}
+        {{ row('Ulzeration', clear='0-2', yes='3-') }}
+        {{ row('Mitotische Aktivität', clear='0-2', yes='3', no='4-', cursor_no=4) }}
+        {{ row('Stadium der Erkrankung bei Erstdiagnose', clear='0-2', yes='3-') }}
+        {{ row('Mutationsstatus (e.g. BRAF, NRAS, cKIT)', clear='0-2', yes='3-') }}
+        {{ row('PD-L1 Status', clear='0-2', yes='3-') }}
+      {% endcall %}
+      {% call cat_open('Primärtherapie', 8) %}
+        {{ row('Resektionsstatus', clear='0-8', yes='9-') }}
+        {{ row('Sicherheitsabstand', clear='0-8', no='9-') }}
+        {{ row('SLNE', clear='0-8', yes='9-') }}
+        {{ row('CLND', clear='0-8', no='9-') }}
+        {{ row('Selektive LAD / LK-Exstirpation', clear='0-8', no='9-') }}
+        {{ row('Lymphknotenbiopsie (FNP/Stanzbiopsie)', clear='0-8', no='9-') }}
+        {{ row('Anzahl LK entfernt', clear='0-8', yes='9-') }}
+        {{ row('Anzahl LK befallen', clear='0-8', yes='9-') }}
+      {% endcall %}
+      {% call cat_open('Therapieverlauf', 7) %}
+        {{ row('Strahlentherapie', clear='0-8', no='9-') }}
+        {{ row('Andere lokoregionäre Therapien (e.g. IL-2, T-VEC)', clear='0-8', no='9-') }}
+        {{ row('Systemtherapie', clear='0-8', yes='9-') }}
+        {{ row('Therapiewechsel (Start, Stopp)', clear='0-8', yes='9-') }}
+        {{ row('Nebenwirkungen und Komplikationen', clear='0-8', yes='9-') }}
+        {{ row('Aktuelle Therapie', clear='0-8', yes='9-') }}
+        {{ row('Studieneinschluss', clear='0-8', no='9-') }}
+      {% endcall %}
+      {% call cat_open('Krankheitsverlauf', 2, hint='Nur ab <strong>Stadium III</strong> aufwärts relevant.') %}
+        {{ row('Datum Erstdiagnose Lymphknotenmetastasierung (i.e., Stadium III)', clear='0-8', yes='9-') }}
+        {{ row('Datum Erstdiagnose Fernmetastasen (i.e., Stadium IV)', clear='0-8', yes='9-') }}
+      {% endcall %}
+      {% call cat_open('Befunde', 3) %}
+        {{ row('Bildgebende Verfahren (e.g. CT, MRT, PET-CT, LK-Sono)', clear='0-8', yes='9-') }}
+        {{ row('Laborwerte (e.g. S100, LDH, HLA-A2)', clear='0-8', yes='9-') }}
+        {{ row('Histopathologie', clear='0-8', yes='9-') }}
+      {% endcall %}
+      {% call cat_open('Aktueller Status', 4) %}
+        {{ row('Stadium der Erkrankung', clear='0-8', yes='9-') }}
+        {{ row('Metastasierung', clear='0-8', yes='9-') }}
+        {{ row('Lokalisation der Metastasierung', clear='0-8', yes='9-') }}
+        {{ row('Symptome und Beschwerden', clear='0-8', yes='9-') }}
+      {% endcall %}
+      {% call cat_open('Entscheidungsrelevante Faktoren', 3) %}
+        {{ row('Patientenpräferenzen', clear='0-8', yes='9-') }}
+        {{ row('Behandlungsziel', clear='0-8', yes='9-') }}
+        {{ row('Beschluss einer Tumorkonferenz', clear='0-8', yes='9-') }}
+      {% endcall %}
+    </div>
+  </aside>
+
+  {# ── first-visit intro modal (markup of #rel-intro-modal) ── #}
+  <div class="modal-overlay" data-in="0" data-mode="fade">
+    <div class="modal-content rel-intro-card">
+      <div class="rel-intro-header">
+        <span class="rel-intro-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </span>
+        <h3 class="rel-intro-title">Relevanzbewertung</h3>
+      </div>
+      <div class="rel-intro-body">
+        <p class="rel-intro-lead">
+          Bevor Sie diesen Fall im Detail bewerten, geben Sie uns bitte eine
+          kurze Einschätzung: <br><br><strong>Welche der angezeigten Informationen
+          halten Sie für die Anmeldung dieses Patienten für
+          klinisch relevant?</strong><br><br>
+        </p>
+        <span class="rel-demo-card">
+          <span class="rel-demo-play" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+          </span>
+          <span class="rel-demo-body">
+            <span class="rel-demo-title">Demo ansehen</span>
+            <span class="rel-demo-text">Bedienung und Hintergrund der Relevanzbewertung – Schritt für Schritt zum Durchklicken</span>
+          </span>
+          <span class="rel-demo-arrow" aria-hidden="true">&rarr;</span>
+        </span>
+        <ol class="rel-intro-steps">
+          <li>
+            <span class="rel-intro-step-num">1</span>
+            <div>
+              <div class="rel-intro-step-title">Sidebar rechts öffnen</div>
+              <div class="rel-intro-step-text">
+                Klicken Sie auf den blauen Reiter <strong>„Relevanz“</strong>
+                am rechten Bildschirmrand. Die Sidebar fährt heraus und zeigt
+                alle Informationen nach Kategorien geordnet. Mit demselben
+                Reiter (oder dem ✕ in der Sidebar) schließen Sie sie wieder.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="rel-intro-step-num">2</span>
+            <div>
+              <div class="rel-intro-step-title">Pro Information entscheiden</div>
+              <div class="rel-intro-step-text">
+                Markieren Sie jede Information als
+                <span class="rel-intro-pill rel-intro-pill--no">✗ nicht relevant</span>
+                oder
+                <span class="rel-intro-pill rel-intro-pill--yes">✓ relevant</span>.
+                Markieren Sie nur, was Sie für die Anmeldung
+                <strong>tatsächlich benötigen</strong>.
+                Mit den Schaltflächen
+                <span class="rel-intro-pill rel-intro-pill--yes">alle&nbsp;✓</span>
+                bzw.
+                <span class="rel-intro-pill rel-intro-pill--no">alle&nbsp;✗</span>
+                neben einer Kategorie können Sie alle Punkte einer Kategorie
+                auf einmal markieren und dann einzelne Ausnahmen anpassen.
+                Ihre Auswahl wird automatisch gespeichert.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="rel-intro-step-num">3</span>
+            <div>
+              <div class="rel-intro-step-title">Wonach sollen Sie sich richten?</div>
+              <div class="rel-intro-step-text">
+                Maßgeblich ist die <strong>Patientenakte</strong> (Übersicht
+                sowie die Reiter Verlauf, Laborwerte und Bildgebung). Sie enthält
+                <strong>alle</strong> Informationen aus den Originalunterlagen.
+                Ist etwa keine Therapie aufgeführt, ist keine erfolgt bzw.
+                keine dokumentiert.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="rel-intro-step-num">4</span>
+            <div>
+              <div class="rel-intro-step-title">Auswirkung Ihrer Auswahl</div>
+              <div class="rel-intro-step-text">
+                Nur als <strong>relevant</strong> markierte Informationen
+                werden später bei der Prüfung auf fehlende und falsche
+                Inhalte herangezogen.
+              </div>
+            </div>
+          </li>
+        </ol>
+        <p class="rel-intro-note">
+          Erst wenn Sie <strong>alle Informationen</strong> bewertet haben,
+          wird die Schaltfläche <em>„Weiter zur Textbewertung“</em> in der Sidebar freigeschaltet.
+        </p>
+      </div>
+      <div class="rel-intro-footer">
+        <span class="btn-continue rel-intro-cta" data-cursor="1">Verstanden. Zur Relevanzbewertung →</span>
+      </div>
+    </div>
+  </div>
+ </div>
+</div>

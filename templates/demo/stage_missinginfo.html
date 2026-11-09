@@ -1,0 +1,35 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 overview · 1 relevance · 2 filter result · 3 severity · 4 probability → next card · 5 same scale (no overlays; the real page has none) #}
+<div class="dt-evalcard">
+  {{ m.frame_header(step, step_no, total) }}
+  <div class="eval-body">
+    {{ m.text_pane('summary') }}
+
+    <div class="rating-section">
+      <h3 class="rating-title">Fehlende Informationen</h3>
+      <p class="rating-hint">Bewerten Sie für jede fehlende Information die möglichen Folgen:</p>
+      <div class="mi-list" data-cls="2:dt-pulse">
+        <div class="mi-card" data-cls="4-:mi-card--collapsed;4-:mi-card--done">
+          <div class="mi-hdr">
+            <svg class="mi-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+            <span class="mi-item-name">Primärtumor: Mutationsstatus (e.g. BRAF, NRAS, cKIT)</span>
+            <span class="mi-done-badge" data-in="4-">Fertig</span>
+          </div>
+          <div class="mi-body">
+            {{ m.harm_lights('amber', 3, 'amber', 4) }}
+          </div>
+        </div>
+        <div class="mi-card mi-card--collapsed" data-cls="4-:!mi-card--collapsed">
+          <div class="mi-hdr">
+            <svg class="mi-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+            <span class="mi-item-name">Befunde: Laborwerte (e.g. S100, LDH, HLA-A2)</span>
+          </div>
+          <div class="mi-body">
+            {{ m.harm_lights(None, None, None, None) }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{ m.frame_footer(step) }}
+</div>

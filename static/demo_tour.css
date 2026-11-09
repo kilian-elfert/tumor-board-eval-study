@@ -1,0 +1,332 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Demo slides per rating step (templates/demo_slides.html, templates/demo/*),
+   shown in a modal on the evaluation page and the patient dashboard
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dt {
+  --dt-blue: #1a4f8a;
+  --dt-sky: #5aa9ff;
+  --dt-amber: #f0a33a;
+  --dt-ink: #0f172a;
+  --dt-muted: #64748b;
+  --dt-bg: #f4f6fb;
+  color: var(--dt-ink);
+}
+
+.dt-icon { display: block; flex-shrink: 0; }
+
+/* ── chapter cards ───────────────────────────────────────────────────────── */
+.dt-chapter-card {
+  max-width: 470px;
+  opacity: .22;
+  transform: translateY(14px);
+  transition: opacity .5s ease, transform .5s ease;
+}
+.dt-chapter.is-active .dt-chapter-card { opacity: 1; transform: none; }
+.dt-chapter-meta { display: flex; align-items: center; gap: .9rem; margin-bottom: 1rem; }
+.dt-chapter-no { font-size: 3rem; font-weight: 800; line-height: 1; color: #cbd5e1; letter-spacing: -.03em; transition: color .5s; }
+.dt-chapter.is-active .dt-chapter-no { color: var(--dt-blue); }
+.dt-chapter--why.is-active .dt-chapter-no { color: var(--dt-amber); }
+.dt-chapter-tag {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .3rem .7rem;
+  border-radius: 999px;
+  font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  background: #e8f0fb; color: var(--dt-blue);
+}
+.dt-chapter--why .dt-chapter-tag { background: #fff2dc; color: #9a5b00; }
+.dt-chapter-title { font-size: clamp(1.6rem, 2.4vw, 2.2rem); font-weight: 800; line-height: 1.15; letter-spacing: -.02em; margin: 0 0 .9rem; }
+.dt-chapter-text { font-size: 1.1rem; line-height: 1.7; color: #334155; margin: 0; }
+.dt-chapter-text a { color: var(--dt-blue); }
+/* relevant / nicht relevant pills in chapter texts (same look as
+   .rel-intro-pill in dashboard.css, which only the relevance demo loads) */
+.dt-chapter-text .rel-intro-pill { display: inline-block; padding: .08rem .55rem; border-radius: 999px; font-weight: 700; font-size: .82em; white-space: nowrap; vertical-align: baseline; }
+.dt-chapter-text .rel-intro-pill--no  { background: #fde2e1; color: #c1352c; }
+.dt-chapter-text .rel-intro-pill--yes { background: #d1fae5; color: #065f46; }
+
+.dt-stage {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 40px 80px -30px rgba(7,26,51,.45), 0 0 0 1px rgba(15,23,42,.06);
+}
+
+.dt-viewport { position: relative; overflow: hidden; }
+.dt-frame {
+  position: absolute; top: 0; left: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.dt-scene-nav { display: flex; justify-content: center; gap: .5rem; margin-top: 1.1rem; }
+.dt-scene-dot {
+  width: 10px; height: 10px; padding: 0;
+  border: none; border-radius: 999px;
+  background: #cbd5e1; cursor: pointer;
+  transition: width .3s, background .3s;
+}
+.dt-scene-dot:hover { background: #94a3b8; }
+.dt-scene-dot.is-active { width: 30px; background: var(--dt-blue); }
+.dt-scene-dot--why.is-active { background: var(--dt-amber); }
+
+/* ── demo cursor ────────────────────────────────────────────────────────── */
+.dt-cursor {
+  position: absolute; top: 0; left: 0; z-index: 30;
+  width: 20px; height: 30px;
+  pointer-events: none;
+  opacity: 0;
+  transition: transform .7s cubic-bezier(.65,0,.35,1), opacity .3s;
+}
+.dt-cursor--instant { transition: opacity .3s; }
+.dt-cursor.is-on { opacity: 1; }
+.dt-cursor::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 28'%3E%3Cpath d='M1 1V22L6.6 16.5L10 24.5L13.5 23L10 15H17L1 1Z' fill='white' stroke='black' stroke-width='1.2' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat 0 0 / contain;
+  filter: drop-shadow(1px 2px 2px rgba(0,0,0,.3));
+  z-index: 1;
+}
+.dt-cursor::after {
+  content: '';
+  position: absolute; left: -15px; top: -15px;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(26,79,138,.35);
+  transform: scale(0); opacity: 0;
+}
+.dt-cursor.is-click::after { animation: dtRipple .55s ease-out; }
+@keyframes dtRipple {
+  0%   { transform: scale(.2); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* ── scene states ───────────────────────────────────────────────────────── */
+.dt-off { display: none !important; }
+[data-mode="fade"] { transition: opacity .45s ease, transform .45s ease, visibility .45s; }
+.dt-faded { opacity: 0 !important; visibility: hidden; transform: translateY(10px); }
+
+.dt-pulse { animation: dtPulse 1.5s ease-in-out infinite; border-radius: 10px; }
+@keyframes dtPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(90,169,255,0); }
+  50%      { box-shadow: 0 0 0 6px rgba(90,169,255,.45); }
+}
+.dt-glow { animation: dtGlow 1.3s ease-in-out infinite; }
+@keyframes dtGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(90,169,255,.0), 0 1px 3px rgba(26,79,138,.4); }
+  50%      { box-shadow: 0 0 0 7px rgba(90,169,255,.45), 0 1px 3px rgba(26,79,138,.4); }
+}
+
+/* ── frame: mock of the evaluation card (real widget classes) ───────────── */
+.dt-evalcard { background: #fff; }
+.dt-frame .eval-body { height: 540px; position: relative; grid-template-rows: minmax(0, 1fr); }
+.dt-frame .eval-body--final { height: 470px; }
+.dt-frame .eval-body--preference { height: auto; }
+.dt-evalcard--tall .eval-body { height: 620px; }
+.dt-frame .fc-sub-check { text-align: left; }
+.dt-frame .preference-cols { min-height: 500px; margin-bottom: 2.6rem; }
+.dt-frame .text-display,
+.dt-frame .rating-section { overflow: hidden; }
+.dt-frame .text-display { position: relative; }
+/* text longer than the panel: fade out instead of a hard cut (real panel scrolls) */
+.dt-frame .text-display::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 90px;
+  background: linear-gradient(to bottom, rgba(248,250,252,0), #f8fafc 85%);
+  pointer-events: none;
+  z-index: 2;
+}
+/* let the hover tooltip extend past the text panel (like the real page) */
+.dt-frame .eval-body--falseinfo .text-display { overflow: visible; z-index: 3; }
+.dt-frame .eval-body--falseinfo .dt-tooltip { z-index: 4; }
+.dt-frame .rating-section { position: relative; }
+.dt-frame .text-content { white-space: normal; }
+.dt-frame .preference-text { white-space: normal; overflow: hidden; position: relative; }
+.dt-frame .preference-text::after {
+  content: '';
+  position: absolute; left: 0; right: 0; bottom: 0; height: 70px;
+  background: linear-gradient(to bottom, rgba(248,250,252,0), #f8fafc 85%);
+  pointer-events: none;
+}
+.dt-frame .pref-selected .preference-text::after { background: linear-gradient(to bottom, rgba(232,242,255,0), #e8f2ff 85%); }
+.dt-frame .pe-level2:not(.dt-off) { display: flex; }
+.dt-frame .btn { cursor: default; }
+.dt-frame .comment-section { margin-top: 0; }
+.dt-doc p { margin: 0 0 1.8em; }   /* = one empty line, like the pre-wrapped real texts */
+.dt-doc p:last-child { margin-bottom: 0; }
+.dt-frame [data-mode="fade"] { pointer-events: none; }
+
+.dt-mark { position: absolute; top: 50%; width: 2px; height: 2px; margin-left: -1px; }
+
+.dt-frame .tl-light input { display: none; }
+.dt-frame .mi-card .fi-tl-row { flex-wrap: nowrap; gap: 1.2rem; }
+.dt-frame .mi-card .tl-housing { gap: .15rem; }
+.dt-frame .mi-card .tl-light { padding: .2rem .45rem; gap: .55rem; border-radius: 8px; }
+.dt-frame .mi-card .tl-bulb { width: 26px; height: 26px; border-width: 2px; }
+.dt-frame .mi-card .tl-opt-label { font-size: .82rem; white-space: nowrap; }
+.dt-frame .mi-card .fi-comment-col { display: none; }
+.dt-frame .pe-level2 { margin-top: .5rem; padding: .5rem; gap: .5rem; }
+
+/* Tooltip anchored to the highlight: the demo cursor points at the span's
+   centre, the tooltip sits bottom-right of it (like the real evaluation page). */
+.dt-hl-anchor { position: relative; }
+.dt-tooltip {
+  left: calc(50% + 12px);
+  top: calc(50% + 20px);
+  width: max-content;
+  max-width: 300px;
+  z-index: 25;
+  font-weight: 400;
+  white-space: normal;
+}
+.dt-tooltip .protocol-tooltip-label,
+.dt-tooltip .protocol-tooltip-excerpt { display: block; }
+
+.dt-fc-subs { display: flex; gap: .7rem; align-items: flex-start; }
+.dt-fc-subs .fc-sub-panel { flex: 1; margin-top: 0; padding: .55rem .7rem; }
+.dt-fc-subs .sub-section-label { font-size: .78rem; }
+.dt-fc-subs .fc-sub-checks { gap: .05rem; }
+.dt-frame .fc-sub-check { padding: .12rem .3rem; font-size: .76rem; line-height: 1.3; }
+
+/* ── relevance stage (patient record + rail; real dashboard.css classes) ── */
+
+.dt-dash { position: relative; height: 700px; overflow: hidden; background: #f0f2f5; }
+/* The real page (base.html body + case_dashboard.html), laid out at a
+   1440 px desktop viewport and scaled into the 1000 px frame. */
+.dt-dash-page {
+  position: absolute; top: 0; left: 0;
+  width: 1440px; height: 1008px;
+  overflow: hidden;
+  transform: scale(.69444);
+  transform-origin: 0 0;
+  background: #f0f2f5;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  color: #1e2633;
+  text-align: left;
+}
+.dt-dash-scroll { transition: transform 1s cubic-bezier(.65,0,.35,1); }
+.dt-dash-scroll.is-end { transform: translateY(calc(1008px - 100%)); }
+.dt-dash .dash-tab { cursor: default; }
+.dt-dash .btn-continue { display: inline-block; cursor: default; }
+.dt-dash .rail-continue-btn { display: block; text-align: center; }
+.dt-dash .rail-toggle { position: absolute; cursor: default; }
+.dt-dash .rail-toggle.dt-rail-open { right: var(--rail-w); }
+.dt-dash .rating-rail { position: absolute; max-width: none; }
+.dt-dash .rail-body { overflow: hidden; }
+.dt-dash .rail-tg { display: inline-flex; align-items: center; justify-content: center; cursor: default; }
+.dt-dash .rail-cat-hdr, .dt-dash .rail-cat-bulk-btn, .dt-dash .rel-demo-card { cursor: default; }
+.dt-dash .modal-overlay { position: absolute; }
+.dt-dash .rel-intro-card { width: 540px; max-height: 887px; }   /* 92vw / 88vh at 1440 × 1008 */
+.dt-dash .dash-tab, .dt-dash .img-btn, .dt-dash .dash-demo-btn, .dt-dash .tl-removed-toggle { cursor: default; }
+/* <details> rendered open, shown closed outside its scenes (see _dash_page.html) */
+.dt-dash .dt-details > summary { list-style-type: disclosure-closed; }
+.dt-dash .dt-details.dt-details--open > summary { list-style-type: disclosure-open; }
+/* body map tooltip (the real one follows the mouse); placed left of the point
+   so it does not cover the imaging list the cursor moves to next */
+.dt-dash .dt-bmap-tip { left: auto; right: calc(33% + 14px); top: calc(22% + 14px); width: 300px; }
+.dt-tip-dot { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 50%; vertical-align: middle; }
+.dt-dash .dt-report { max-height: 760px; }   /* 85vh at 1440 × 1008 */
+/* static stand-in for the Chart.js lab charts */
+.dt-dash .dt-lab-svg { display: block; width: 100%; height: auto; font-size: 11px; fill: #666; }
+.dt-dash .dt-lab-svg .dt-lab-ref { font-size: 10px; font-weight: 700; fill: #6b7280; }
+.dt-dash .dt-lab-svg .dt-lab-ref--line { fill: #1a4f8a; }
+.dt-dash .lab-view-btn, .dt-dash .lab-cat-card, .dt-dash .toggle-switch { cursor: default; }
+/* Frame the miniature like a screenshot: it keeps the real grey page
+   background, so a visible edge separates it from the white slide. */
+.dt .dt-stage.dt-stage--relevance,
+.dt .dt-stage.dt-stage--record {
+  background: #f0f2f5;
+  box-shadow: 0 24px 56px -22px rgba(7,26,51,.5), 0 0 0 1px rgba(15,23,42,.18);
+}
+/* ── slide variant (templates/demo_slides.html, shown in a modal iframe) ── */
+html:has(.dts-body), .dts-body { height: 100%; }
+.dts-body { margin: 0; background: #fff; overflow: hidden; }
+.dt--slides {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+.dts-head {
+  display: flex; align-items: center; gap: .9rem;
+  padding: 1rem 4.5rem 1rem 1.6rem;   /* right: room for the modal's close button */
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.dts-head-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 50%;
+  background: #e8f0fb; color: var(--dt-blue); flex-shrink: 0;
+}
+.dts-eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--dt-muted); }
+.dts-title { margin: .1rem 0 0; font-size: 1.35rem; font-weight: 800; letter-spacing: -.01em; color: var(--dt-ink); }
+
+.dts-main {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 1.6rem;
+  padding: 1.4rem 1.6rem;
+  background: var(--dt-bg);
+}
+.dts-text { min-height: 0; overflow-y: auto; display: flex; align-items: center; }
+.dt--slides .dt-chapter { display: none; min-height: 0; }
+.dt--slides .dt-chapter.is-active { display: block; }
+.dt--slides .dt-chapter-card { opacity: 1; transform: none; animation: dtsSlideIn .35s ease; }
+.dt--slides .dt-chapter-no { font-size: 2.2rem; }
+.dt--slides .dt-chapter-title { font-size: 1.45rem; }
+.dt--slides .dt-chapter-text { font-size: 1rem; line-height: 1.65; }
+.dt--slides.dts-on-summary .dt-chapter.is-active { display: none; }
+@keyframes dtsSlideIn {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.dts-summary { display: none; width: 100%; animation: dtsSlideIn .35s ease; }
+.dts-on-summary .dts-summary { display: block; }
+.dts-take-list { list-style: none; margin: 1rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .9rem; }
+.dts-take-list li { display: flex; flex-direction: column; gap: .2rem; padding-left: .9rem; border-left: 3px solid var(--dt-sky); }
+.dts-take-list strong { font-size: 1.05rem; color: var(--dt-ink); }
+.dts-take-list span { font-size: .95rem; color: #475569; line-height: 1.5; }
+
+.dts-stagebox { min-height: 0; min-width: 0; display: flex; align-items: center; justify-content: center; }
+.dt--slides .dt-stage { width: 100%; box-shadow: 0 20px 50px -24px rgba(7,26,51,.35), 0 0 0 1px rgba(15,23,42,.06); }
+
+.dts-foot {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: .8rem 1.6rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+.dts-foot .dt-scene-nav { margin: 0; }
+.dt-scene-dot--summary.is-active { background: var(--dt-sky); }
+.dts-counter { font-size: .8rem; color: var(--dt-muted); font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: right; }
+.dts-btn {
+  padding: .55rem 1.2rem;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font: inherit; font-size: .9rem; font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.dts-btn:hover:not(:disabled) { border-color: var(--dt-blue); color: var(--dt-blue); }
+.dts-btn:disabled { opacity: .4; cursor: default; }
+.dts-btn--next { background: var(--dt-blue); border-color: var(--dt-blue); color: #fff; min-width: 9.5rem; }
+.dts-btn--next:hover:not(:disabled) { background: #143d6b; color: #fff; }
+.dts-btn--done { background: #15803d; border-color: #15803d; }
+.dts-btn--done:hover:not(:disabled) { background: #166534; border-color: #166534; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dt *, .dt *::before, .dt *::after { animation: none !important; transition: none !important; }
+  .dt-chapter-card { transform: none; }
+}

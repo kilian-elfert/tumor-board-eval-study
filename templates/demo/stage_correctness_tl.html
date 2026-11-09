@@ -1,0 +1,19 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 read · 1 three levels · 2 choose · 3 change · 4 not specific · 5 reference (no overlay; the real page has none) #}
+<div class="dt-evalcard">
+  {{ m.frame_header(step, step_no, total) }}
+  <div class="eval-body">
+    {{ m.text_pane('problem') }}
+
+    <div class="rating-section">
+      <h3 class="rating-title">Nachvollziehbarkeit des vorgeschlagenen Vorgehens</h3>
+      <div class="tl-housing" data-cls="1:dt-pulse">
+        {{ m.tl_range('green', 'Entspricht dem aktuellen Therapiestandard (i.e. "best-practice")', '2', 2) }}
+        {{ m.tl_range('amber', 'Entspricht nicht dem aktuellen Therapiestandard (i.e. "not best-practice"), ist aber medizinisch nachvollziehbar', '3', 3) }}
+        {{ m.tl('red', 'Medizinisch nicht nachvollziehbar') }}
+        {{ m.tl_range('gray', 'Nicht spezifisch genug für eine Beurteilung', '4-', 4) }}
+      </div>
+    </div>
+  </div>
+  {{ m.frame_footer(step) }}
+</div>

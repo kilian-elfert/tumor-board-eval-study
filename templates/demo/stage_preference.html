@@ -1,0 +1,29 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 side by side · 1 rationale · 2 pick A · 3 pick B · 4 no preference · 5 criteria #}
+{% set kind = step.section_type %}
+<div class="dt-evalcard">
+  {{ m.frame_header(step, step_no, total) }}
+  <div class="eval-body eval-body--preference">
+    <div class="preference-cols" data-cls="5:dt-pulse">
+      <div class="preference-col pref-clickable" data-pref="Version A" data-cls="2:pref-selected" data-cursor="2">
+        <div class="text-label pref-label-a">Version A</div>
+        <div class="text-content preference-text">{{ m.case_text(kind, 'A') }}</div>
+        <div class="pref-badge">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="20"/><line x1="5" y1="8" x2="19" y2="4"/><path d="M5 8 L3 13 Q5 15 7 13 Z"/><path d="M19 4 L17 8 Q19 10 21 8 Z"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
+        </div>
+      </div>
+      <div class="preference-col pref-clickable" data-pref="Version B" data-cls="3:pref-selected" data-cursor="3">
+        <div class="text-label pref-label-b">Version B</div>
+        <div class="text-content preference-text">{{ m.case_text(kind, 'B') }}</div>
+        <div class="pref-badge">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="20"/><line x1="5" y1="4" x2="19" y2="8"/><path d="M5 4 L3 8 Q5 10 7 8 Z"/><path d="M19 8 L17 13 Q19 15 21 13 Z"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
+        </div>
+      </div>
+      <span class="pref-no-pref-btn" data-cls="0-1:pref-no-pref-btn--active;4-:pref-no-pref-btn--active" data-cursor="4">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="20"/><line x1="5" y1="6" x2="19" y2="6"/><path d="M5 6 L3 11 Q5 13 7 11 Z"/><path d="M19 6 L17 11 Q19 13 21 11 Z"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
+        <span class="pref-no-pref-label">Keine Präferenz</span>
+      </span>
+    </div>
+  </div>
+  {{ m.frame_footer(step) }}
+</div>

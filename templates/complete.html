@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="center-wrap">
+  <div class="card complete-card">
+    <div class="complete-icon">&#10003;</div>
+    <h1>Evaluation abgeschlossen</h1>
+    <p>
+      Vielen Dank, <strong>{{ username }}</strong>.<br>
+      Sie haben alle <strong>{{ total }}</strong> Bewertungen abgegeben.
+    </p>
+    <p>
+      Ihre Rückmeldung ist ein wichtiger Beitrag zur Verbesserung der KI-gestützten
+      Tumorboardvorbereitung. Wir bedanken uns herzlich für Ihre Zeit und Teilnahme.
+    </p>
+    <div class="complete-actions">
+      <a href="{{ url_for('evaluate_resume') }}" class="btn btn-secondary">
+        Bewertungen ansehen / bearbeiten
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Environment / secrets
+.env
+
+# Virtual environments
+.venv
+
+# Exports
+exports/
+
+# Responses 
+responses/
+
+# Original documents 
+original_documents/
+
+# Dashboard JSONs
+dashboard_data/
+
+# Texts to be evaluated 
+texts_human/
+texts_llm/
+
+# Highlight mappings (contains patient data excerpts)
+highlight_mappings.json
+
+# Annotations (contains patient data excerpts)
+annotations/
+
+# Internal reports (contain patient identifiers and clinical data)
+reports/
+
+# Archived / non-essential material (moved out of the live study app)
+analysis/
+scripts/
+data_products/
+
+# Archived non-main case data + standalone test case (patient data; manual handoff only)
+archived_cases/
+test_case/
+
+# Office temp / lock files
+~$*
+
+# Local archives (may contain patient data)
+*.rar
+*.zip
+
+# Editor settings
+.vscode/
+
+# Generated login credentials 
+users.json
+
+# Account seed file for setup_users.py batch mode (plaintext passwords — never commit)
+accounts.txt
+
+# Doctor→case assignments (contains participant names; runtime config)
+assignments.json

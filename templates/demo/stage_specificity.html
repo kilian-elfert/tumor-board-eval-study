@@ -1,0 +1,19 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 read · 1 specific vs generic · 2 case references · 3 choose · 4 delimitation (no overlays; the real page has none) #}
+<div class="dt-evalcard">
+  {{ m.frame_header(step, step_no, total) }}
+  <div class="eval-body">
+    {{ m.text_pane('problem', mark='specificity') }}
+
+    <div class="rating-section">
+      <h3 class="rating-title">{{ step.subtitle }}</h3>
+      <p class="tl-question">Alle relevanten Aspekte des Falls werden berücksichtigt.</p>
+      <div class="tl-housing">
+        {{ m.tl('green', 'Trifft zu') }}
+        {{ m.tl('amber', 'Trifft teilweise zu', 3) }}
+        {{ m.tl('red', 'Trifft nicht zu') }}
+      </div>
+    </div>
+  </div>
+  {{ m.frame_footer(step) }}
+</div>

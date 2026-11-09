@@ -1,0 +1,70 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 read · 1 rationale · 2 use as is · 3 needs edit · 4 effort · 5 categories #}
+{% macro clock(kind) -%}
+{%- set clock_paths = {'minor': '25.99 7.10', 'major': '29.87 7.93', 'rewrite': '33.50 9.55'} -%}
+<span class="pe-sub-icon"><svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="24" cy="26" r="19" fill="none" stroke="#1a4f8a" stroke-width="3.5"/>
+  <path d="M24 26 L24 7 A19 19 0 0 1 {{ clock_paths[kind] }} Z" fill="#e74c3c"/>
+  <line x1="21" y1="4" x2="27" y2="4" stroke="#1a4f8a" stroke-width="3" stroke-linecap="round"/>
+  <line x1="24" y1="4" x2="24" y2="9" stroke="#1a4f8a" stroke-width="2.5"/>
+  <line x1="37" y1="11" x2="40" y2="8" stroke="#1a4f8a" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="24" cy="26" r="1.5" fill="#1a4f8a"/>
+</svg></span>
+{%- endmacro %}
+<div class="dt-evalcard dt-evalcard--tall">
+  {{ m.frame_header(step, step_no, total) }}
+  <div class="eval-body">
+    {{ m.text_pane(step.section_type) }}
+    <div class="rating-section">
+      <h3 class="rating-title">{{ step.subtitle }}</h3>
+      <p class="pe-intro-text">Kann {{ 'dieser Text' if step.section_type == 'summary' else 'diese Fragestellung' }} direkt für die klinische Verwendung übernommen werden, oder sind Überarbeitungen erforderlich? Falls ja, schätzen Sie den Zeitaufwand.</p>
+      <div class="pe-level1" data-cls="1:dt-pulse">
+        <div class="pe-card pe-card--green" data-cls="2:pe-card--active" data-cursor="2">
+          <span class="pe-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <span class="pe-card-label">Direkt verwenden</span>
+          <span class="pe-card-sub">Kein Überarbeitungsbedarf</span>
+        </div>
+        <div class="pe-card pe-card--amber" data-cls="3-:pe-card--active" data-cursor="3">
+          <span class="pe-card-icon"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><g transform="translate(12 12) scale(1.1) translate(-10.9 -10.9)"><path fill-rule="evenodd" d="M12.7 7.2L14.4 6.9L14.4 9.1L12.7 8.8L11.9 10.8L13.3 11.7L11.7 13.3L10.8 11.9L8.8 12.7L9.1 14.4L6.9 14.4L7.2 12.7L5.2 11.9L4.3 13.3L2.7 11.7L4.1 10.8L3.3 8.8L1.6 9.1L1.6 6.9L3.3 7.2L4.1 5.2L2.7 4.3L4.3 2.7L5.2 4.1L7.2 3.3L6.9 1.6L9.1 1.6L8.8 3.3L10.8 4.1L11.7 2.7L13.3 4.3L11.9 5.2ZM10.2 8A2.2 2.2 0 1 0 5.8 8A2.2 2.2 0 1 0 10.2 8Z"/><path fill-rule="evenodd" d="M19.1 15.5L20.2 15.3L20.2 16.7L19.1 16.5L18.6 17.8L19.5 18.4L18.4 19.5L17.8 18.6L16.5 19.1L16.7 20.2L15.3 20.2L15.5 19.1L14.2 18.6L13.6 19.5L12.5 18.4L13.5 17.8L12.9 16.5L11.8 16.7L11.8 15.3L12.9 15.5L13.5 14.2L12.5 13.6L13.6 12.5L14.2 13.5L15.5 12.9L15.3 11.8L16.7 11.8L16.5 12.9L17.8 13.5L18.4 12.5L19.5 13.6L18.6 14.2ZM17.4 16A1.4 1.4 0 1 0 14.6 16A1.4 1.4 0 1 0 17.4 16Z"/></g></svg></span>
+          <span class="pe-card-label">Überarbeitung nötig</span>
+          <span class="pe-card-sub">Bitte Aufwand schätzen</span>
+        </div>
+      </div>
+
+      <div class="pe-level2" data-in="3-" data-cls="5:dt-pulse">
+        <div class="pe-level2-header">Geschätzte Dauer der Überarbeitung:</div>
+        <div class="pe-level2-options">
+          <div class="pe-sub-card">
+            {{ clock('minor') }}
+            <span class="pe-sub-label">Kleine Korrekturen</span>
+            <span class="pe-sub-desc">max. 1 min</span>
+          </div>
+          {% if step.key == 'summary_postedit' %}
+          <div class="pe-sub-card" data-cls="4-:pe-sub-card--active" data-cursor="4">
+            {{ clock('major') }}
+            <span class="pe-sub-label">Größere Überarbeitungen</span>
+            <span class="pe-sub-desc">1-5 min</span>
+          </div>
+          <div class="pe-sub-card">
+            {{ clock('rewrite') }}
+            <span class="pe-sub-label">Vollständig neu verfassen</span>
+            <span class="pe-sub-desc">&gt; 5 min</span>
+          </div>
+          {% else %}
+          <div class="pe-sub-card" data-cls="4-:pe-sub-card--active" data-cursor="4">
+            {{ clock('major') }}
+            <span class="pe-sub-label">Vollständig neu verfassen</span>
+            <span class="pe-sub-desc">&gt; 1 min</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="pe-confirm-msg" data-in="2">
+        <span class="pe-confirm-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+        <span>Kein Überarbeitungsbedarf.</span>
+      </div>
+    </div>
+  </div>
+  {{ m.frame_footer(step) }}
+</div>

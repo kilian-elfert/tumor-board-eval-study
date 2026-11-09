@@ -1,0 +1,38 @@
+{# Scenes: 0 tabs · 1 body map hover · 2 TXT in overview → report · 3 "Originaltext anzeigen" · 4 "Verlauf" tab · 5 "Laborwerte" tab · 6 lab table · 7 "Bildgebung" tab · 8 TXT in tab → report · 9 record is complete
+
+   Mirrors templates/case_dashboard.html (evaluator view) with the shared page
+   markup in demo/_dash_page.html, laid out at 1440 px and scaled into the
+   1000 px demo frame (see .dt-dash-page). #}
+
+{% macro report(scenes, title, text) -%}
+<div class="modal-overlay" data-in="{{ scenes }}" data-mode="fade">
+  <div class="modal-content dt-report">
+    <div class="modal-header">
+      <h3>{{ title }}</h3>
+      <span class="modal-close">&times;</span>
+    </div>
+    <pre class="modal-body">{{ text }}</pre>
+  </div>
+</div>
+{%- endmacro %}
+
+<div class="dt-dash">
+ <div class="dt-dash-page">
+  {% with ov={'tabs_pulse': '0,9', 'point_hover': '1', 'ov_txt_click': '2', 'orig_click': '3', 'orig_open': '3',
+              'tab_overview': '0-3', 'tab_verlauf': '4', 'click_verlauf': '4',
+              'tab_lab': '5-6', 'click_lab': '5', 'lab_table': '6', 'click_lab_table': '6',
+              'tab_imaging': '7-', 'click_imaging': '7', 'img_txt_click': '8'} %}{% include 'demo/_dash_page.html' %}{% endwith %}
+
+  <span class="rail-toggle">
+    <span class="rail-toggle-icon">≡</span>
+    <span class="rail-toggle-label">Relevanz</span>
+    <span class="rail-toggle-badge">0/39</span>
+  </span>
+
+  {{ report('2', 'Originaldokument — Fall 1: 9b1e4c7a2f6d3085e1c94b7a6f2d8e035c1a7b9e4d2f6083a5c7e1b9d4f2a6c8',
+            'Lymphknoten-Sonographie vom 12.09.2024\n\nFragestellung: Nachsorge bei malignem Melanom (pT4b pN1a, Stadium IIIC),\nadjuvante Therapie mit Pembrolizumab seit 06/2024.\n\nBefund:\nAxillär links ein neu aufgetretener, rundlicher Lymphknoten von 14 mm\nmit aufgehobenem Hilus und vermehrter Randperfusion.\nAxillär rechts, inguinal und zervikal beidseits unauffällige Lymphknoten.\n\nBeurteilung:\nMalignitätssuspekter Lymphknoten axillär links (14 mm),\nDD Lymphknotenmetastase. Histologische Sicherung empfohlen.') }}
+
+  {{ report('8', 'Originaldokument — Fall 1: 9b1e4c7a2f6d3085e1c94b7a6f2d8e035c1a7b9e4d2f6083a5c7e1b9d4f2a6c8',
+            'CT Thorax/Abdomen/Becken mit Kontrastmittel vom 16.04.2024\n\nFragestellung: Staging bei malignem Melanom am Rücken, SLNE 1/2 positiv.\n\nBefund:\nKeine pulmonalen Rundherde. Keine pathologisch vergrößerten Lymphknoten\nthorakal, abdominell oder pelvin. Leber, Milz und Nebennieren ohne\nHerdbefund. Keine ossären Destruktionen.\n\nBeurteilung:\nKein Anhalt für Lymphknoten- oder Fernmetastasen.') }}
+ </div>
+</div>

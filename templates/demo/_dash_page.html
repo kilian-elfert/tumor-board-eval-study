@@ -1,0 +1,473 @@
+{#
+  Shared mock of the patient record page (templates/case_dashboard.html,
+  evaluator view, fictional demo case) for the demo stages. Include inside
+  .dt-dash-page with `ov` set:
+    {% with ov={...} %}{% include 'demo/_dash_page.html' %}{% endwith %}
+  All keys are optional scene specs (ranges as documented in _macros.html):
+    scroll_end       scenes in which the page is scrolled to its end
+    tabs_pulse       scenes in which the tab row pulses
+    tab_overview     scenes showing the "Übersicht" tab (default: all; set it when
+                     other tabs are used)
+    tab_verlauf      scenes showing the "Verlauf" tab (renders that tab)
+    tab_lab          scenes showing the "Laborwerte" tab (renders that tab)
+    tab_imaging      scenes showing the "Bildgebung" tab (renders that tab)
+    click_verlauf    scene in which the cursor clicks the "Verlauf" tab
+    click_lab        scene in which the cursor clicks the "Laborwerte" tab
+    lab_table        scenes showing the lab table instead of the charts
+    click_lab_table  scene in which the cursor clicks "Tabelle"
+    click_imaging    scene in which the cursor clicks the "Bildgebung" tab
+    grid_pulse       scenes in which the overview grid pulses
+    point_hover      scene in which the cursor hovers the metastasis on the body map
+    ov_txt_click     scene in which the cursor clicks TXT in the overview imaging list
+    orig_click       scene in which the cursor opens "Originaltext anzeigen" (first Kurzverlauf card)
+    orig_open        scenes in which that original text is shown
+    img_txt_click    scene in which the cursor clicks TXT in the "Bildgebung" tab
+    continue_unlock  first scene with the unlocked continue button
+#}
+
+{% macro tl_item(date, dot, text) -%}
+<li class="therapy-tl-item">
+  <span class="therapy-tl-date">{{ date }}</span>
+  <span class="therapy-tl-dot-wrap"><span class="therapy-tl-dot {{ dot }}"></span></span>
+  <span class="therapy-tl-content">{{ text }}</span>
+</li>
+{%- endmacro %}
+
+{% macro verlauf_card(cat, date, text, last=False, original='', open_spec='', click=None) -%}
+<div class="timeline-card tl-{{ cat }}" data-type="{{ cat }}">
+  <div class="tl-dot-line">
+    <span class="tl-dot"></span>
+    {% if not last %}<span class="tl-line"></span>{% endif %}
+  </div>
+  <div class="tl-body">
+    <div class="tl-body-header">
+      <span class="tl-type-badge">{{ cat }}</span>
+      <span class="tl-date">{{ date }}</span>
+    </div>
+    <p class="tl-text">{{ text }}</p>
+    {% if original and open_spec %}
+    {# open <details> styled as closed outside open_spec, so the toggle stays in place #}
+    <details class="tl-removed-details dt-details" open data-cls="{{ open_spec }}:dt-details--open">
+      <summary class="tl-removed-toggle" {% if click is not none %}data-cursor="{{ click }}"{% endif %}>Originaltext anzeigen</summary>
+      <pre class="tl-removed-lines" data-in="{{ open_spec }}">{{ original }}</pre>
+    </details>
+    {% else %}
+    <details class="tl-removed-details">
+      <summary class="tl-removed-toggle">Originaltext anzeigen</summary>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro img_node(date, type, summary, assess, last=False, click=None) -%}
+<div class="imaging-flow-node">
+  <div class="imaging-flow-dot-col">
+    <span class="imaging-flow-dot"></span>
+    {% if not last %}<span class="imaging-flow-line"></span>{% endif %}
+  </div>
+  <div class="imaging-flow-card">
+    <div class="img-card-header">
+      <span class="img-date">{{ date }}</span>
+      <span class="img-card-actions">
+        <span class="img-btn img-btn-txt" {% if click is not none %}data-cursor="{{ click }}"{% endif %}>TXT</span>
+        <span class="img-type-badge">{{ type }}</span>
+      </span>
+    </div>
+    <p class="img-summary">{{ summary }}</p>
+    <details class="img-finding-details">
+      <summary class="img-finding-toggle">Befund anzeigen</summary>
+    </details>
+    <p class="img-assess"><strong>Beurteilung:</strong> {{ assess }}</p>
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro verlauf_full(cat, date, text, last=False, removed=0) -%}
+<div class="timeline-card tl-{{ cat }}" data-type="{{ cat }}">
+  <div class="tl-date">{{ date }}</div>
+  <div class="tl-dot-line">
+    <span class="tl-dot"></span>
+    {% if not last %}<span class="tl-line"></span>{% endif %}
+  </div>
+  <div class="tl-body">
+    <span class="tl-type-badge">{{ cat }}</span>
+    <p class="tl-text">{{ text }}</p>
+    {% if removed %}
+    <details class="tl-removed-details">
+      <summary class="tl-removed-toggle">Entfernte Zeilen anzeigen ({{ removed }})</summary>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+{# Static stand-in for a Chart.js lab chart: grid, reference range (band, or
+   dashed line for upper-only references), measured values. #}
+{% macro lab_chart(title, unit, ymin, ymax, ticks, ref_lo, ref_hi, ref_label, points, fmt='%d') -%}
+{% set x0, x1, y0, y1 = 58, 365, 18, 214 %}
+{% set k = (y1 - y0) / (ymax - ymin) %}
+{% set ref_hi_y = y1 - (ref_hi - ymin) * k %}
+<div class="lab-chart-box">
+  <div class="lab-chart-header"><span class="lab-chart-title">{{ title }}</span></div>
+  <svg class="dt-lab-svg" viewBox="0 0 380 250" aria-hidden="true">
+    {% for t in ticks %}
+    {% set ty = y1 - (t - ymin) * k %}
+    <line x1="{{ x0 }}" x2="{{ x1 }}" y1="{{ '%.1f' % ty }}" y2="{{ '%.1f' % ty }}" stroke="#e5e7eb"/>
+    <text x="{{ x0 - 8 }}" y="{{ '%.1f' % (ty + 4) }}" text-anchor="end">{{ (fmt % t) | replace('.', ',') }}</text>
+    {% endfor %}
+    {% if ref_lo is not none %}
+    {% set ref_lo_y = y1 - (ref_lo - ymin) * k %}
+    <rect x="{{ x0 }}" width="{{ x1 - x0 }}" y="{{ '%.1f' % ref_hi_y }}" height="{{ '%.1f' % (ref_lo_y - ref_hi_y) }}" fill="rgba(46,204,113,.12)" stroke="rgba(46,204,113,.45)"/>
+    <text x="{{ x0 + 6 }}" y="{{ '%.1f' % (ref_hi_y + 13) }}" class="dt-lab-ref">{{ ref_label }}</text>
+    {% else %}
+    <line x1="{{ x0 }}" x2="{{ x1 }}" y1="{{ '%.1f' % ref_hi_y }}" y2="{{ '%.1f' % ref_hi_y }}" stroke="#1a4f8a" stroke-dasharray="6 4"/>
+    <text x="{{ x1 - 4 }}" y="{{ '%.1f' % (ref_hi_y - 5) }}" text-anchor="end" class="dt-lab-ref dt-lab-ref--line">{{ ref_label }} *</text>
+    {% endif %}
+    <line x1="{{ x0 }}" x2="{{ x0 }}" y1="{{ y0 }}" y2="{{ y1 }}" stroke="#d1d5db"/>
+    {% set step = (x1 - x0 - 60) / ((points | length) - 1 if points | length > 1 else 1) %}
+    {% for d, v in points %}
+    {% set px = x0 + 30 + loop.index0 * step %}
+    {% set vy = y1 - (v - ymin) * k %}
+    {% if not loop.last %}
+    <line x1="{{ '%.1f' % px }}" y1="{{ '%.1f' % vy }}" x2="{{ '%.1f' % (px + step) }}" y2="{{ '%.1f' % (y1 - (points[loop.index][1] - ymin) * k) }}" stroke="#9ca3af" stroke-width="2"/>
+    {% endif %}
+    {% set warn = (ref_hi is not none and v > ref_hi) or (ref_lo is not none and v < ref_lo) %}
+    <circle cx="{{ '%.1f' % px }}" cy="{{ '%.1f' % vy }}" r="5" fill="{{ '#e74c3c' if warn else '#9ca3af' }}" stroke="#fff" stroke-width="1.5"/>
+    <text x="{{ '%.1f' % px }}" y="{{ y1 + 18 }}" text-anchor="middle">{{ d }}</text>
+    {% endfor %}
+    <text x="14" y="{{ (y0 + y1) / 2 }}" transform="rotate(-90 14 {{ (y0 + y1) / 2 }})" text-anchor="middle">{{ unit }}</text>
+  </svg>
+</div>
+{%- endmacro %}
+
+{% set hover = ov.point_hover %}
+{% set hover_cls = ('data-cls="' ~ hover ~ ':hovered"') if hover else '' %}
+<div class="dt-dash-scroll" {% if ov.scroll_end %}data-cls="{{ ov.scroll_end }}:is-end"{% endif %}>
+ <div class="container">
+  <div class="dash-container dash-with-rail">
+
+    <div class="eval-progress-bar">
+      <div class="progress-meta">
+        <span class="progress-label">Fall <strong>1</strong> von <strong>10</strong></span>
+        <span class="progress-count">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width: 0%"></div></div>
+    </div>
+
+    <div class="dash-header">
+      <h1>Patientenakte — Fall 1: 9b1e4c7a2f6d3085e1c94b7a6f2d8e035c1a7b9e4d2f6083a5c7e1b9d4f2a6c8</h1>
+    </div>
+
+    <p class="dash-intro-hint">
+      Bitte machen Sie sich mit den Patientendaten vertraut, bevor Sie mit der Bewertung beginnen.
+      Sie können während der Bewertung jederzeit zu dieser Übersicht zurückkehren.
+    </p>
+
+    <p class="dash-na-legend">
+      <span class="dash-na">Nicht dokumentiert</span> = Die Information ist in den Unterlagen nicht enthalten.
+      Das bedeutet nicht, dass sie nicht erhoben wurde oder unauffällig ist.
+      Angaben wie „Nicht durchgeführt“, „Ausstehend“ oder „Unbekannt“ geben dagegen wieder, was in den Unterlagen steht.
+    </p>
+
+    <div class="dash-tabs dash-tabs--rail" {% if ov.tabs_pulse %}data-cls="{{ ov.tabs_pulse }}:dt-pulse"{% endif %}>
+      <span class="dash-tab{% if not ov.tab_overview %} active{% endif %}" {% if ov.tab_overview %}data-cls="{{ ov.tab_overview }}:active"{% endif %}>Übersicht</span>
+      <span class="dash-tab" {% if ov.tab_verlauf %}data-cls="{{ ov.tab_verlauf }}:active"{% endif %} {% if ov.click_verlauf %}data-cursor="{{ ov.click_verlauf }}"{% endif %}>Verlauf</span>
+      <span class="dash-tab" {% if ov.tab_lab %}data-cls="{{ ov.tab_lab }}:active"{% endif %} {% if ov.click_lab %}data-cursor="{{ ov.click_lab }}"{% endif %}>Laborwerte</span>
+      <span class="dash-tab" {% if ov.tab_imaging %}data-cls="{{ ov.tab_imaging }}:active"{% endif %} {% if ov.click_imaging %}data-cursor="{{ ov.click_imaging }}"{% endif %}>Bildgebung</span>
+      <span class="dash-demo-btn">
+        <span class="dash-demo-btn-play" aria-hidden="true">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        </span>Demo: Patientenakte
+      </span>
+    </div>
+
+    <div class="dash-tab-content{% if not ov.tab_overview %} active{% endif %}" {% if ov.tab_overview %}data-cls="{{ ov.tab_overview }}:active"{% endif %}>
+      <div class="overview-grid" {% if ov.grid_pulse %}data-cls="{{ ov.grid_pulse }}:dt-pulse"{% endif %}>
+
+        {# ── left column: patient info ── #}
+        <div class="info-card">
+          <div class="tb-conference-chip">
+            <div class="tb-conf-calendar" aria-hidden="true">
+              <span class="tb-conf-cal-month">SEP</span>
+              <span class="tb-conf-cal-day">25</span>
+            </div>
+            <div class="tb-conf-meta">
+              <span class="tb-conf-label">Geplante Tumorkonferenz</span>
+              <span class="tb-conf-main">Mittwoch, 25.09.2024</span>
+            </div>
+          </div>
+          <h2 class="card-title">Basisdaten</h2>
+          <table class="info-table">
+            <tr><th>Alter</th><td>68 Jahre</td></tr>
+            <tr><th>Geschlecht</th><td>M</td></tr>
+            <tr><th>ECOG</th><td>0 – Normale, uneingeschränkte Aktivität wie vor der Erkrankung</td></tr>
+          </table>
+
+          <h3 class="card-subtitle">Therapieverlauf</h3>
+          <div class="therapy-cat">
+            <h4 class="therapy-cat-label"><span class="therapy-tl-dot dot-surgery"></span> Chirurgie</h4>
+            <ol class="therapy-timeline">
+              {{ tl_item('12.03.2024', 'dot-surgery', 'Exzision Primärtumor Rücken') }}
+              {{ tl_item('16.04.2024', 'dot-surgery', 'Nachexzision Rücken mit 2 cm Sicherheitsabstand und SLNE (1/2 positiv)') }}
+            </ol>
+          </div>
+          <div class="therapy-cat">
+            <h4 class="therapy-cat-label"><span class="therapy-tl-dot dot-systemic"></span> Systemtherapie</h4>
+            <ol class="therapy-timeline">
+              {{ tl_item('03.06.2024', 'dot-systemic', 'Adjuvante Therapie mit Pembrolizumab') }}
+            </ol>
+          </div>
+          <div class="therapy-cat">
+            <h4 class="therapy-cat-label"><span class="therapy-tl-dot dot-current"></span> Aktuell</h4>
+            <ol class="therapy-timeline">
+              {{ tl_item('seit 06/2024', 'dot-current', 'Pembrolizumab adjuvant') }}
+            </ol>
+          </div>
+        </div>
+
+        {# ── center column: body map (post-JS markup of _body_map.html) ── #}
+        <div class="body-map-card">
+          <div class="bmap-header">
+            <h2 class="card-title">Übersicht</h2>
+            <div class="bmap-header-badges">
+              <span class="bmap-disease-status">V. a. Progress (PD)</span>
+            </div>
+          </div>
+          <div class="body-map-echelon">
+            <div class="bmap-sidebar bmap-left">
+              <div class="bmap-category">
+                <h3 class="bmap-heading"><span class="bmap-dot dot-primary"></span>Primärtumor <span class="bmap-ed-date">ED 12.03.2024</span></h3>
+                <ul class="bmap-list"><li class="bmap-item item-primary"><span class="bmap-item-dot"></span>Rücken</li></ul>
+                <div class="bmap-diagnosis-info">
+                  <table class="bmap-dx-table">
+                    <tr><td class="bmap-dx-label">Diagnose</td><td>Malignes Melanom</td></tr>
+                    <tr><td class="bmap-dx-label">Lokalisation</td><td>Rücken</td></tr>
+                    <tr><td class="bmap-dx-label">Tumordicke</td><td>4,8 mm</td></tr>
+                    <tr><td class="bmap-dx-label">Ulzeration</td><td>Ja</td></tr>
+                    <tr><td class="bmap-dx-label">Mitosen</td><td>3/mm²</td></tr>
+                    <tr><td class="bmap-dx-label">Histologie</td><td>SSM</td></tr>
+                    <tr><td class="bmap-dx-label">Resektionsstatus</td><td>R0</td></tr>
+                    <tr><td class="bmap-dx-label">Sicherheitsabstand</td><td>2,0 cm</td></tr>
+                    <tr><td class="bmap-dx-label">SLNE</td><td>1/2 positiv</td></tr>
+                    <tr><td class="bmap-dx-label">Stadium bei ED</td><td>pT4b pN1a cM0 &mdash; UICC IIIC</td></tr>
+                  </table>
+                </div>
+              </div>
+              <div class="bmap-category">
+                <h3 class="bmap-heading"><span class="bmap-dot dot-meta"></span>Metastasen <span class="bmap-ed-date">ED 12.09.2024</span></h3>
+                <ol class="bmap-timeline">
+                  <li class="bmap-tl-item item-meta-active" {{ hover_cls | safe }}><span class="bmap-tl-date">12.09.2024</span><span class="bmap-tl-dot-wrap"><span class="bmap-tl-dot"></span></span><span class="bmap-tl-content"><span class="bmap-tl-title"><span class="bmap-tl-warn" title="Aktiv">⚡</span>Axilla li.</span><span class="bmap-tl-sub">Suspekter LK (14 mm)</span></span></li>
+                </ol>
+              </div>
+            </div>
+            <div class="bmap-body-wrap">
+              <div class="bmap-body">
+                <div class="bmap-body-outline"></div>
+                <img src="{{ url_for('static', filename='body_map_echelon.png') }}" alt="" class="bmap-body-image" draggable="false">
+                <div class="body-point point-primary active" style="left:50%;top:25%"><div class="point"></div></div>
+                <div class="body-point point-meta-active active" style="left:67%;top:22%" {{ hover_cls | safe }} {% if hover %}data-cursor-hover="{{ hover }}"{% endif %}><div class="point"></div></div>
+                {% if hover %}
+                <div class="body-tooltip dt-bmap-tip" data-in="{{ hover }}" data-mode="fade">
+                  <span class="dt-tip-dot" style="background:#ff9900"></span>Metastase (aktiv): Suspekter LK (14 mm)<br>
+                  <span class="dt-tip-dot" style="background:#1a4f8a"></span>LK-Sono (12.09.2024): Malignitätssuspekter Lymphknoten axillär links (14 mm), DD Lymphknotenmetastase
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="bmap-sidebar bmap-right">
+              <div class="bmap-category">
+                <h3 class="bmap-heading"><span class="bmap-dot dot-imaged"></span>Bildgebung</h3>
+                <ol class="bmap-timeline">
+                  <li class="bmap-tl-item item-imaged"><span class="bmap-tl-date">16.04.2024</span><span class="bmap-tl-dot-wrap"><span class="bmap-tl-dot"></span></span><span class="bmap-tl-content"><span class="bmap-tl-title">Ganzkörper</span><span class="bmap-tl-sub">CT</span><span class="bmap-tl-actions"><span class="img-btn img-btn-txt">TXT</span></span></span></li>
+                  <li class="bmap-tl-item item-imaged" {{ hover_cls | safe }}><span class="bmap-tl-date">12.09.2024</span><span class="bmap-tl-dot-wrap"><span class="bmap-tl-dot"></span></span><span class="bmap-tl-content"><span class="bmap-tl-title">Axilla li.</span><span class="bmap-tl-sub">LK-Sono</span><span class="bmap-tl-actions"><span class="img-btn img-btn-txt" {% if ov.ov_txt_click %}data-cursor="{{ ov.ov_txt_click }}"{% endif %}>TXT</span></span></span></li>
+                </ol>
+              </div>
+              <div class="bmap-legend" aria-label="Legende">
+                <div class="bmap-legend-row"><span class="bmap-legend-dot lg-primary-active"></span><span>Primärtumor, aktiv <small>(pulsierend)</small></span></div>
+                <div class="bmap-legend-row"><span class="bmap-legend-dot lg-primary"></span><span>Primärtumor, inaktiv <small>(matt, z. B. reseziert)</small></span></div>
+                <div class="bmap-legend-row"><span class="bmap-legend-dot lg-meta-active"></span><span>Metastase, aktiv <small>(pulsierend)</small></span></div>
+                <div class="bmap-legend-row"><span class="bmap-legend-dot lg-meta"></span><span>Metastase, inaktiv <small>(matt)</small></span></div>
+                <div class="bmap-legend-row"><span class="bmap-legend-dot lg-meta-responding"></span><span>Metastase mit Therapieansprechen <small>(grün, schrumpfend)</small></span></div>
+                <div class="bmap-legend-note">Liegen Primärtumor und Metastase in derselben Region, werden beide Punkte nebeneinander angezeigt.</div>
+              </div>
+              <div class="bmap-category bmap-comorbidities">
+                <h3 class="bmap-heading"><span class="bmap-warn">&#9888;</span> Komorbiditäten</h3>
+                <ul class="bmap-list"><li class="bmap-item bmap-comorbidity-item">Z. n. Appendektomie 1998</li></ul>
+              </div>
+            </div>
+          </div>
+          <div class="bmap-staging-center">
+            <h4 class="bmap-staging-title bmap-staging-has-date">Aktuelles Stadium</h4>
+            <p class="bmap-staging-date">Stand: 12.09.2024</p>
+            <div class="bmap-staging-line"><span class="bmap-dx-label">T</span> pT4b <span class="bmap-dx-label">N</span> pN1a <span class="bmap-dx-label">M</span> cM0 <span class="bmap-staging-sep">|</span> <span class="bmap-dx-label">UICC</span> IIIC <span class="bmap-staging-class">AJCC 2017</span></div>
+          </div>
+          <div class="bmap-staging-center">
+            <h4 class="bmap-staging-title">Molekularpathologie</h4>
+            <div class="bmap-molpath-chips">
+              <span class="mutation-chip"><strong>Mutationsstatus:</strong> ausstehend</span>
+              <span class="mutation-chip"><strong>PD-L1:</strong> <span class="dash-na">Nicht dokumentiert</span></span>
+              <span class="mutation-chip"><strong>HLA-A:</strong> <span class="dash-na">Nicht dokumentiert</span></span>
+            </div>
+          </div>
+        </div>
+
+        {# ── right column: Kurzverlauf ── #}
+        <div class="verlauf-card">
+          <h2 class="card-title">Kurzverlauf</h2>
+          <div class="verlauf-filters">
+            <select class="verlauf-filter-select"><option>Alle Jahre</option></select>
+            <input class="verlauf-filter-input" type="search" placeholder="Stichwort suchen">
+          </div>
+          <div class="tag-select">
+            <div class="tag-select-tags"><span class="tag-select-placeholder">Alle Kategorien</span></div>
+            <div class="tag-select-actions">
+              <span class="tag-select-toggle">&#9662;</span>
+            </div>
+          </div>
+          <div class="timeline-reel">
+            {{ verlauf_card('Diagnostik', '12.03.2024', 'Histologie: superfiziell spreitendes Melanom am Rücken, Tumordicke 4,8 mm, ulzeriert.',
+                            original='12.03.24 Histologie Exzisat Rücken (Dermatopathologie):\nSuperfiziell spreitendes malignes Melanom, Tumordicke 4,8 mm,\nUlzeration vorhanden, Mitosen 3/mm², Resektionsränder tumorfrei (R0).\n-> Vorstellung zur Nachexzision und SLNE',
+                            open_spec=ov.orig_open, click=ov.orig_click) }}
+            {{ verlauf_card('Staging', '16.04.2024', 'SLNE: Mikrometastase in 1/2 Sentinel-Lymphknoten (pN1a); Staging-CT ohne Hinweis auf Fernmetastasen.') }}
+            {{ verlauf_card('Therapie', '03.06.2024', 'Beginn der adjuvanten Therapie mit Pembrolizumab.') }}
+            {{ verlauf_card('Diagnostik', '12.09.2024', 'LK-Sonographie: neu aufgetretener malignitätssuspekter Lymphknoten axillär links (14 mm).') }}
+            {{ verlauf_card('Tumorkonferenz', '13.09.2024', 'Anmeldung zur Tumorkonferenz zur Besprechung des weiteren Procedere.', last=True) }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if ov.tab_verlauf %}
+    {# ── "Verlauf" tab: full entries (cleaned original text) ── #}
+    <div class="dash-tab-content" data-cls="{{ ov.tab_verlauf }}:active">
+      <h2 class="section-title">Verlaufsdokumentation</h2>
+      <div class="verlauf-filters">
+        <select class="verlauf-filter-select"><option>Alle Jahre</option></select>
+        <input class="verlauf-filter-input" type="search" placeholder="Stichwort suchen">
+      </div>
+      <div class="tag-select">
+        <div class="tag-select-tags"><span class="tag-select-placeholder">Alle Kategorien</span></div>
+        <div class="tag-select-actions"><span class="tag-select-toggle">&#9662;</span></div>
+      </div>
+      <div class="timeline-reel">
+        {{ verlauf_full('Diagnostik', '12.03.2024', 'Histologie Exzisat Rücken (Dermatopathologie):\nSuperfiziell spreitendes malignes Melanom, Tumordicke 4,8 mm, Ulzeration vorhanden,\nMitosen 3/mm², Resektionsränder tumorfrei (R0).\n-> Vorstellung zur Nachexzision und SLNE', removed=2) }}
+        {{ verlauf_full('Staging', '16.04.2024', 'SLNE axillär links: Mikrometastase in 1 von 2 Sentinel-Lymphknoten (pN1a).\nStaging-CT Thorax/Abdomen/Becken: kein Anhalt für Lymphknoten- oder Fernmetastasen.') }}
+        {{ verlauf_full('Therapie', '03.06.2024', 'Beginn der adjuvanten Immuntherapie mit Pembrolizumab 400 mg i.v. alle 6 Wochen.\nAufklärung über Nebenwirkungen erfolgt, Einverständnis liegt vor.') }}
+        {{ verlauf_full('Diagnostik', '12.09.2024', 'LK-Sonographie: neu aufgetretener, rundlicher Lymphknoten axillär links (14 mm)\nmit aufgehobenem Hilus, malignitätssuspekt. Histologische Sicherung empfohlen.', last=True) }}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if ov.tab_lab %}
+    {# ── "Laborwerte" tab: charts (Chart.js on the real page) or table ── #}
+    {% set ls = ov.lab_table %}
+    <div class="dash-tab-content" data-cls="{{ ov.tab_lab }}:active">
+      <div class="section-title-row">
+        <h2 class="section-title" style="margin:0">Laborwerte</h2>
+        <div class="lab-view-switch">
+          <span class="lab-view-btn active" {% if ls %}data-cls="{{ ls }}:!active"{% endif %}>
+            <svg class="lab-view-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="14 7 21 7 21 14"></polyline></svg>
+            <span>Grafisch</span>
+          </span>
+          <span class="lab-view-btn" {% if ls %}data-cls="{{ ls }}:active"{% endif %} {% if ov.click_lab_table %}data-cursor="{{ ov.click_lab_table }}"{% endif %}>
+            <svg class="lab-view-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="9" y1="4" x2="9" y2="20"></line></svg>
+            <span>Tabelle</span>
+          </span>
+        </div>
+        <span class="toggle-switch">
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">Nur auffällige Werte anzeigen</span>
+        </span>
+      </div>
+      <div class="verlauf-filters">
+        <select class="verlauf-filter-select"><option>Alle Jahre</option></select>
+      </div>
+      <div class="imaging-tag-filters">
+        <div class="tag-select">
+          <div class="tag-select-tags"><span class="tag-select-placeholder">Alle Kategorien</span></div>
+          <div class="tag-select-actions"><span class="tag-select-toggle">&#9662;</span></div>
+        </div>
+        <div class="tag-select">
+          <div class="tag-select-tags"><span class="tag-select-placeholder">Alle Marker</span></div>
+          <div class="tag-select-actions"><span class="tag-select-toggle">&#9662;</span></div>
+        </div>
+      </div>
+      <div class="lab-category-overview">
+        <span class="lab-cat-card">Blutbild <span class="lab-cat-card-count">(2)</span></span>
+        <span class="lab-cat-card">Entzündung <span class="lab-cat-card-count">(1)</span></span>
+        <span class="lab-cat-card"><span class="lab-cat-card-warn">⚠</span> Leberwerte <span class="lab-cat-card-count">(2)</span></span>
+        <span class="lab-cat-card">Nierenfunktion <span class="lab-cat-card-count">(1)</span></span>
+        <span class="lab-cat-card">Tumormarker <span class="lab-cat-card-count">(2)</span></span>
+      </div>
+      <div class="lab-view lab-view--charts" {% if ls %}data-cls="{{ ls }}:dt-off"{% endif %}>
+        <div class="lab-charts-grid">
+          {{ lab_chart('S100', 'µg/l', 0, 0.12, [0, 0.03, 0.06, 0.09, 0.12], None, 0.105, 'Ref <0,105 µg/l', [('12.03.2024', 0.05), ('12.09.2024', 0.08)], fmt='%.2f') }}
+          {{ lab_chart('LDH', 'U/l', 100, 300, [100, 150, 200, 250, 300], 135, 250, 'Ref 135-250 U/l', [('12.03.2024', 182), ('12.09.2024', 214)]) }}
+          {{ lab_chart('GPT (ALT)', 'U/l', 0, 80, [0, 20, 40, 60, 80], None, 50, 'Ref <50 U/l', [('03.06.2024', 28), ('12.09.2024', 63)]) }}
+        </div>
+      </div>
+      {% if ls %}
+      <div class="lab-view lab-view--table" data-in="{{ ls }}">
+        <div class="lab-grid">
+          <div class="lab-table-box">
+            <table class="lab-table">
+              <thead><tr><th>Datum</th><th>Marker</th><th>Wert</th><th>Einheit</th><th>Ref.</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>12.03.2024</td><td><strong>S100</strong></td><td>0,05</td><td>µg/l</td><td>&lt;0,105</td><td class="lab-warn-cell"></td></tr>
+                <tr><td>12.03.2024</td><td><strong>LDH</strong></td><td>182</td><td>U/l</td><td>135-250</td><td class="lab-warn-cell"></td></tr>
+                <tr><td>03.06.2024</td><td><strong>GPT (ALT)</strong></td><td>28</td><td>U/l</td><td>&lt;50</td><td class="lab-warn-cell"></td></tr>
+                <tr><td>12.09.2024</td><td><strong>S100</strong></td><td>0,08</td><td>µg/l</td><td>&lt;0,105</td><td class="lab-warn-cell"></td></tr>
+                <tr><td>12.09.2024</td><td><strong>LDH</strong></td><td>214</td><td>U/l</td><td>135-250</td><td class="lab-warn-cell"></td></tr>
+                <tr class="lab-row-warn"><td>12.09.2024</td><td><strong>GPT (ALT)</strong></td><td>63</td><td>U/l</td><td>&lt;50</td><td class="lab-warn-cell">⚠</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if ov.tab_imaging %}
+    {# ── "Bildgebung" tab ── #}
+    <div class="dash-tab-content" data-cls="{{ ov.tab_imaging }}:active">
+      <h2 class="section-title">Bildgebende Diagnostik</h2>
+      <div class="verlauf-filters">
+        <select class="verlauf-filter-select"><option>Alle Jahre</option></select>
+      </div>
+      <div class="imaging-tag-filters">
+        <div class="tag-select">
+          <div class="tag-select-tags"><span class="tag-select-placeholder">Alle Verfahren</span></div>
+          <div class="tag-select-actions"><span class="tag-select-toggle">&#9662;</span></div>
+        </div>
+        <div class="tag-select">
+          <div class="tag-select-tags"><span class="tag-select-placeholder">Alle Regionen</span></div>
+          <div class="tag-select-actions"><span class="tag-select-toggle">&#9662;</span></div>
+        </div>
+      </div>
+      <div class="imaging-flow-grid">
+        <div class="imaging-lane">
+          <h3 class="imaging-lane-title">Ganzkörper</h3>
+          <div class="imaging-lane-flow">
+            {{ img_node('16.04.2024', 'CT', 'Staging-CT Thorax/Abdomen/Becken ohne Hinweis auf Lymphknoten- oder Fernmetastasen.',
+                        'Kein Anhalt für Fernmetastasen.', last=True, click=ov.img_txt_click) }}
+          </div>
+        </div>
+        <div class="imaging-lane">
+          <h3 class="imaging-lane-title">Axilla li.</h3>
+          <div class="imaging-lane-flow">
+            {{ img_node('12.09.2024', 'LK-Sono', 'Neu aufgetretener, rundlicher Lymphknoten axillär links (14 mm) mit aufgehobenem Hilus.',
+                        'Malignitätssuspekter Lymphknoten axillär links, DD Lymphknotenmetastase.', last=True) }}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="dash-continue-form">
+      <span class="btn-continue is-locked" {% if ov.continue_unlock %}data-cls="{{ ov.continue_unlock }}-:!is-locked"{% endif %}>Weiter zur Textbewertung &rarr;</span>
+    </div>
+  </div>
+ </div>
+</div>

@@ -1,0 +1,59 @@
+{#
+  Modal with the click-through demo (iframe → /demo/<key>/folien).
+  Include with `demo_key` and `demo_title` set. Any element with
+  [data-open-slides] opens it; an opener may point to another demo with
+  data-slides-src / data-slides-title. On close a `tbeval-demo-closed` event
+  is fired on document (used to refresh "demo seen" highlights).
+#}
+<div class="demo-slides-overlay" id="demo-slides" role="dialog" aria-modal="true" aria-label="Demo: {{ demo_title }}" hidden
+     data-src="{{ url_for('demo_slides', step_key=demo_key, back=request.path) }}">
+  <div class="demo-slides-dialog">
+    <button type="button" class="demo-slides-close" data-close-slides title="Demo schließen (Esc)" aria-label="Demo schließen">&times;</button>
+    <iframe class="demo-slides-frame" title="Demo: {{ demo_title }}"></iframe>
+  </div>
+</div>
+<script>
+(function() {
+  var overlay = document.getElementById('demo-slides');
+  if (!overlay) return;
+  var frame = overlay.querySelector('iframe');
+  var defaultTitle = frame.getAttribute('title');
+  var lastFocus = null;
+  function openSlides(e) {
+    if (e) e.preventDefault();
+    var opener = e && e.currentTarget;
+    var src = (opener && opener.getAttribute('data-slides-src')) || overlay.getAttribute('data-src');
+    var title = opener && opener.getAttribute('data-slides-title');
+    title = title ? 'Demo: ' + title : defaultTitle;
+    frame.setAttribute('title', title);
+    overlay.setAttribute('aria-label', title);
+    lastFocus = document.activeElement;
+    frame.src = src;   /* fresh load: starts at slide 1 */
+    overlay.hidden = false;
+    document.body.style.overflow = 'hidden';
+    frame.addEventListener('load', function onLoad() {
+      frame.removeEventListener('load', onLoad);
+      try { frame.contentWindow.focus(); } catch (err) {}
+    });
+  }
+  function closeSlides() {
+    if (overlay.hidden) return;
+    overlay.hidden = true;
+    document.body.style.overflow = '';
+    frame.src = 'about:blank';
+    document.dispatchEvent(new CustomEvent('tbeval-demo-closed'));
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  document.querySelectorAll('[data-open-slides]').forEach(function(b) {
+    b.addEventListener('click', openSlides);
+  });
+  overlay.querySelector('[data-close-slides]').addEventListener('click', closeSlides);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeSlides(); });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !overlay.hidden) { e.stopImmediatePropagation(); closeSlides(); }
+  }, true);
+  window.addEventListener('message', function(e) {
+    if (e.origin === window.location.origin && e.data && e.data.type === 'tbeval-demo-close') closeSlides();
+  });
+})();
+</script>

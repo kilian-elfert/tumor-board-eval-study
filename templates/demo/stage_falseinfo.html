@@ -1,0 +1,39 @@
+{% import 'demo/_macros.html' as m %}
+{# Scenes: 0 overview · 1 pre-marked · 2 hover → record · 3 open card · 4 severity · 5 probability · 6 why two lights (result) #}
+<div class="dt-evalcard">
+  {{ m.frame_header(step, step_no, total) }}
+  <div class="eval-body eval-body--falseinfo">
+    {{ m.text_pane('summary', mark='falseinfo') }}
+
+    <div class="rating-section">
+      <h3 class="rating-title">Fehlerhafte Informationen</h3>
+      <p class="rating-hint">Bewerten Sie für jede vom Studienteam als falsch markierte Information die möglichen Folgen:</p>
+      <div class="mi-list" data-cls="1:dt-pulse">
+        <div class="mi-card mi-card--falseinfo mi-card--collapsed"
+             data-cls="2:mi-card--hover;3-:!mi-card--collapsed;5-:mi-card--done">
+          <div class="mi-hdr" data-cursor="3">
+            <svg class="mi-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+            <span class="mi-item-name">Primärtumor: Tumordicke</span>
+            <span class="mi-done-badge" data-in="5-">Fertig</span>
+          </div>
+          <div class="mi-body">
+            <div class="fi-reasoning">
+              <div class="fi-reasoning-label">Begründung des Studienteams
+                <span class="fi-reasoning-cat fi-reasoning-cat--inhaltlich">Inhaltlich</span>
+              </div>
+              <div class="fi-reasoning-text">Tumordicke weicht vom histologischen Befund ab (dokumentiert: 4,8&nbsp;mm); damit ist auch das pT-Stadium falsch.</div>
+            </div>
+            <div class="dt-harm-wrap" data-cls="6:dt-pulse">{{ m.harm_lights('red', 4, 'amber', 5) }}</div>
+          </div>
+        </div>
+        <div class="mi-card mi-card--falseinfo mi-card--collapsed">
+          <div class="mi-hdr">
+            <svg class="mi-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+            <span class="mi-item-name">Therapieverlauf: Systemtherapie</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{ m.frame_footer(step) }}
+</div>
